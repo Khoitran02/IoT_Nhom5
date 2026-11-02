@@ -1,0 +1,14 @@
+apiVersion: 1
+datasources:
+  - name: CrateDB
+    uid: cratedb
+    type: postgres # CrateDB nói giao thức PostgreSQL (cổng 5432 trong mạng Docker)
+    access: proxy
+    url: crate-db:5432
+    user: crate
+    database: doc
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1000
+      timescaledb: false
+    editable: true

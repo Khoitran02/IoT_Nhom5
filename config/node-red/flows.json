@@ -1,0 +1,173 @@
+[
+  {
+    "id": "tab_shrimp_rule_engine",
+    "type": "tab",
+    "label": "Shrimp Pond Rule Engine",
+    "disabled": false,
+    "info": "Hệ thống Rule Engine giám sát chất lượng nước và tự động điều khiển sục khí ao tôm (FIWARE Architecture)"
+  },
+  {
+    "id": "http_in_notify",
+    "type": "http in",
+    "z": "tab_shrimp_rule_engine",
+    "name": "POST /notify (Webhook)",
+    "url": "/notify",
+    "method": "post",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 130,
+    "y": 140,
+    "wires": [
+      ["http_resp_ok", "fn_rule_engine"]
+    ]
+  },
+  {
+    "id": "http_resp_ok",
+    "type": "http response",
+    "z": "tab_shrimp_rule_engine",
+    "name": "200 OK",
+    "statusCode": "200",
+    "headers": {},
+    "x": 350,
+    "y": 80,
+    "wires": []
+  },
+  {
+    "id": "inject_test_low_do",
+    "type": "inject",
+    "z": "tab_shrimp_rule_engine",
+    "name": "Thử nghiệm: DO thấp (3.2 mg/L)",
+    "props": [
+      {
+        "p": "payload",
+        "v": "{\"data\":[{\"id\":\"urn:ngsi-ld:Pond:001\",\"dissolvedOxygen\":3.2,\"pH\":7.4,\"temperature\":28.0,\"salinity\":15.0,\"aeratorState\":\"OFF\"}]}",
+        "vt": "json"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "x": 170,
+    "y": 240,
+    "wires": [
+      ["fn_rule_engine"]
+    ]
+  },
+  {
+    "id": "inject_test_high_do",
+    "type": "inject",
+    "z": "tab_shrimp_rule_engine",
+    "name": "Thử nghiệm: DO cao (6.5 mg/L)",
+    "props": [
+      {
+        "p": "payload",
+        "v": "{\"data\":[{\"id\":\"urn:ngsi-ld:Pond:001\",\"dissolvedOxygen\":6.5,\"pH\":7.8,\"temperature\":28.0,\"salinity\":15.0,\"aeratorState\":\"ON\"}]}",
+        "vt": "json"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "x": 170,
+    "y": 280,
+    "wires": [
+      ["fn_rule_engine"]
+    ]
+  },
+  {
+    "id": "fn_rule_engine",
+    "type": "function",
+    "z": "tab_shrimp_rule_engine",
+    "name": "Rule Engine (DO, pH, Temp)",
+    "func": "// Rule Engine: Giám sát ngưỡng chất lượng nước và ra quyết định điều khiển sục khí\n// Input: msg.payload từ Orion Context Broker (NGSI-v2 Subscription)\n\nconst data = msg.payload.data;\nif (!Array.isArray(data) || data.length === 0) {\n    return null;\n}\n\n// Hàm trích xuất giá trị thuộc tính (hỗ trợ cả keyValues và normalized format)\nfunction getAttrValue(entity, attrName) {\n    if (!entity || entity[attrName] === undefined || entity[attrName] === null) return null;\n    if (typeof entity[attrName] === 'object' && entity[attrName] !== null && 'value' in entity[attrName]) {\n        return entity[attrName].value;\n    }\n    return entity[attrName];\n}\n\nconst commands = [];\nconst alerts = [];\n\nfor (let i = 0; i < data.length; i++) {\n    const pond = data[i];\n    const pondId = pond.id; // ví dụ: urn:ngsi-ld:Pond:001\n    const doVal = getAttrValue(pond, 'dissolvedOxygen');\n    const phVal = getAttrValue(pond, 'pH');\n    const tempVal = getAttrValue(pond, 'temperature');\n    const salVal = getAttrValue(pond, 'salinity');\n    const aeratorState = (getAttrValue(pond, 'aeratorState') || '').toUpperCase();\n\n    let targetAerator = null;\n    let triggerReason = '';\n\n    // RULE 1: Nhiệt độ cao (> 33°C) -> Cảnh báo + kích hoạt sục khí\n    if (tempVal !== null && tempVal > 33.0) {\n        alerts.push({\n            pondId: pondId,\n            level: 'WARNING',\n            metric: 'temperature',\n            value: tempVal,\n            message: `[${pondId}] Nhiệt độ nước cao (${tempVal}°C > 33°C). Bật sục khí hỗ trợ!`,\n            timestamp: new Date().toISOString()\n        });\n        targetAerator = 'ON';\n        triggerReason = `Nhiệt độ cao (${tempVal}°C)`;\n    }\n\n    // RULE 2: Ngưỡng Oxy hòa tan (DO)\n    // - DO < 4.0 mg/L -> Bật sục khí\n    // - DO > 6.0 mg/L -> Tắt sục khí (Hysteresis chống giật rơ-le)\n    if (doVal !== null) {\n        if (doVal < 4.0) {\n            targetAerator = 'ON';\n            triggerReason = `DO thấp (${doVal} mg/L < 4.0 mg/L)`;\n            if (doVal < 2.5) {\n                alerts.push({\n                    pondId: pondId,\n                    level: 'CRITICAL',\n                    metric: 'dissolvedOxygen',\n                    value: doVal,\n                    message: `[${pondId}] NGUY CẤP! DO tụt sâu (${doVal} mg/L < 2.5 mg/L). Đang bật sục khí khẩn cấp!`,\n                    timestamp: new Date().toISOString()\n                });\n            } else {\n                alerts.push({\n                    pondId: pondId,\n                    level: 'WARNING',\n                    metric: 'dissolvedOxygen',\n                    value: doVal,\n                    message: `[${pondId}] Cảnh báo: DO thấp (${doVal} mg/L < 4.0 mg/L). Bật sục khí.`,\n                    timestamp: new Date().toISOString()\n                });\n            }\n        } else if (doVal > 6.0 && (tempVal === null || tempVal <= 33.0)) {\n            targetAerator = 'OFF';\n            triggerReason = `DO dồi dào (${doVal} mg/L > 6.0 mg/L)`;\n        }\n    }\n\n    // RULE 3: pH bất thường ngoài khoảng 7.5 - 8.5\n    if (phVal !== null && (phVal < 7.5 || phVal > 8.5)) {\n        alerts.push({\n            pondId: pondId,\n            level: 'WARNING',\n            metric: 'pH',\n            value: phVal,\n            message: `[${pondId}] Cảnh báo: pH bất thường (${phVal} nằm ngoài 7.5 - 8.5)!`,\n            timestamp: new Date().toISOString()\n        });\n    }\n\n    // Chỉ gửi lệnh khi cần chuyển đổi trạng thái thực sự (tránh spam lệnh)\n    if (targetAerator !== null && targetAerator !== aeratorState) {\n        commands.push({\n            url: `http://orion:1026/v2/entities/${encodeURIComponent(pondId)}/attrs`,\n            method: 'PATCH',\n            headers: {\n                'Content-Type': 'application/json',\n                'fiware-service': 'shrimp',\n                'fiware-servicepath': '/'\n            },\n            payload: {\n                'aerator': {\n                    'type': 'command',\n                    'value': targetAerator\n                }\n            },\n            info: `[${pondId}] Chuyển aerator từ ${aeratorState || 'UNKNOWN'} sang ${targetAerator} do ${triggerReason}`,\n            pondId: pondId,\n            targetAerator: targetAerator\n        });\n    }\n}\n\n// Output 1: Danh sách các lệnh điều khiển gửi tới Orion\n// Output 2: Danh sách các cảnh báo (Alerts)\nconst alertMsg = alerts.length > 0 ? { payload: alerts } : null;\nreturn [commands, alertMsg];",
+    "outputs": 2,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 450,
+    "y": 200,
+    "wires": [
+      ["http_req_orion_cmd", "debug_cmd"],
+      ["debug_alerts"]
+    ]
+  },
+  {
+    "id": "http_req_orion_cmd",
+    "type": "http request",
+    "z": "tab_shrimp_rule_engine",
+    "name": "Gửi Command tới Orion",
+    "method": "use",
+    "ret": "txt",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 750,
+    "y": 160,
+    "wires": [
+      ["debug_cmd_result"]
+    ]
+  },
+  {
+    "id": "debug_cmd",
+    "type": "debug",
+    "z": "tab_shrimp_rule_engine",
+    "name": "Lệnh sục khí đã phát",
+    "active": true,
+    "tosidebar": true,
+    "console": true,
+    "tostatus": true,
+    "complete": "info",
+    "targetType": "msg",
+    "statusVal": "info",
+    "statusType": "auto",
+    "x": 740,
+    "y": 220,
+    "wires": []
+  },
+  {
+    "id": "debug_cmd_result",
+    "type": "debug",
+    "z": "tab_shrimp_rule_engine",
+    "name": "Kết quả từ Orion API",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 990,
+    "y": 160,
+    "wires": []
+  },
+  {
+    "id": "debug_alerts",
+    "type": "debug",
+    "z": "tab_shrimp_rule_engine",
+    "name": "Cảnh báo chất lượng nước (Alerts)",
+    "active": true,
+    "tosidebar": true,
+    "console": true,
+    "tostatus": true,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "payload[0].message",
+    "statusType": "auto",
+    "x": 780,
+    "y": 280,
+    "wires": []
+  }
+]
+

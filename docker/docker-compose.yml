@@ -1,0 +1,271 @@
+# =============================================================================
+# Dự án nuôi tôm - hệ thống giám sát chất lượng nước và điều khiển sục khí
+# Bản 1 máy (all-in-one). Chạy: docker compose --env-file ../.env up -d
+#
+# Luồng: MQTT (EMQX) -> IoT Agent JSON -> Orion (+MongoDB)
+#        Orion -> QuantumLeap -> CrateDB -> Grafana        (lịch sử)
+#        Orion -> Node-RED -> Orion -> IoT Agent -> EMQX   (rule và lệnh sục khí)
+#
+# Mọi phiên bản, mật khẩu, cổng nằm trong file .env (xem .env.example).
+# Địa chỉ giữa các service dùng tên service trong mạng Docker (emqx, orion...).
+# Khi tách nhiều máy (bước 2), đổi các tên này thành biến .env.
+# =============================================================================
+
+name: shrimp-iot
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m" # tránh log DEBUG làm đầy ổ đĩa
+    max-file: "3"
+
+services:
+  # ---------------------------------------------------------------- MQTT broker
+  emqx:
+    image: emqx/emqx:${EMQX_VERSION:?Hãy đặt EMQX_VERSION trong .env}
+    container_name: shrimp-emqx
+    hostname: emqx
+    restart: unless-stopped
+    environment:
+      # Cố định tên nút để dữ liệu trong volume dùng lại được sau khi restart
+      EMQX_NODE__NAME: "emqx@127.0.0.1"
+      EMQX_DASHBOARD__DEFAULT_USERNAME: "${EMQX_DASHBOARD_USER:-admin}"
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: "${EMQX_DASHBOARD_PASSWORD:?Hãy đặt EMQX_DASHBOARD_PASSWORD trong .env}"
+    ports:
+      - "${MQTT_BIND_ADDR:-0.0.0.0}:1883:1883" # MQTT (Wokwi / simulator / máy khác)
+      - "${BIND_ADDR:-127.0.0.1}:18083:18083" # Dashboard quản trị EMQX
+    volumes:
+      - emqx-data:/opt/emqx/data
+      - emqx-log:/opt/emqx/log
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 30s
+    mem_limit: 1g
+    logging: *default-logging
+
+  # ------------------------------------------------- CSDL của Orion + IoT Agent
+  mongo-db:
+    image: mongo:${MONGO_VERSION:?Hãy đặt MONGO_VERSION trong .env}
+    container_name: shrimp-mongo
+    hostname: mongo-db
+    restart: unless-stopped
+    command: ["--wiredTigerCacheSizeGB", "0.5"]
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      # Mongo 5.0 trở lên dùng mongosh. Nếu dùng Mongo 4.4, đổi "mongosh" thành "mongo".
+      test:
+        ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 20s
+    mem_limit: 1g
+    logging: *default-logging
+
+  # -------------------------------------------------------------- Context Broker
+  orion:
+    image: telefonicaiot/fiware-orion:${ORION_VERSION:?Hãy đặt ORION_VERSION trong .env}
+    container_name: shrimp-orion
+    hostname: orion
+    restart: unless-stopped
+    depends_on:
+      mongo-db:
+        condition: service_healthy
+    command:
+      - "-dbURI"
+      - "mongodb://mongo-db:27017"
+      - "-logLevel"
+      - "${ORION_LOG_LEVEL:-ERROR}"
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:1026:1026"
+    healthcheck:
+      test:
+        ["CMD-SHELL", "curl --fail -s http://localhost:1026/version || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 15s
+    mem_limit: 512m
+    logging: *default-logging
+
+  # ------------------------------------------------- IoT Agent (MQTT <-> NGSI)
+  iot-agent:
+    image: telefonicaiot/iotagent-json:${IOTA_VERSION:?Hãy đặt IOTA_VERSION trong .env}
+    container_name: shrimp-iot-agent
+    hostname: iot-agent
+    restart: unless-stopped
+    depends_on:
+      orion:
+        condition: service_healthy
+      mongo-db:
+        condition: service_healthy
+      emqx:
+        condition: service_healthy
+    environment:
+      IOTA_CB_HOST: "orion"
+      IOTA_CB_PORT: "1026"
+      IOTA_CB_NGSI_VERSION: "v2"
+      IOTA_NORTH_PORT: "4041"
+      IOTA_PROVIDER_URL: "http://iot-agent:4041"
+      IOTA_REGISTRY_TYPE: "mongodb"
+      IOTA_MONGO_HOST: "mongo-db"
+      IOTA_MONGO_PORT: "27017"
+      IOTA_MONGO_DB: "iotagentjson"
+      IOTA_MQTT_HOST: "emqx"
+      IOTA_MQTT_PORT: "1883"
+      # Bật khi đã cấu hình xác thực trên EMQX:
+      # IOTA_MQTT_USERNAME: "${MQTT_USER}"
+      # IOTA_MQTT_PASSWORD: "${MQTT_PASSWORD}"
+      IOTA_HTTP_PORT: "7896"
+      IOTA_AMQP_DISABLED: "true" # không dùng AMQP, tránh lỗi kết nối RabbitMQ khi khởi động
+      IOTA_TIMESTAMP: "true"
+      IOTA_AUTOCAST: "true"
+      IOTA_LOG_LEVEL: "${IOTA_LOG_LEVEL:-INFO}"
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:4041:4041" # API cấu hình (northbound)
+    healthcheck:
+      # Dùng node vì image có thể không có curl
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "require('http').get('http://localhost:4041/iot/about',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 15s
+    mem_limit: 512m
+    logging: *default-logging
+
+  # ------------------------------------------------------ CSDL lịch sử (time-series)
+  crate-db:
+    image: crate:${CRATE_VERSION:?Hãy đặt CRATE_VERSION trong .env}
+    container_name: shrimp-crate
+    hostname: crate-db
+    restart: unless-stopped
+    command: >
+      crate
+      -Cdiscovery.type=single-node
+      -Cauth.host_based.enabled=false
+      -Ccluster.name=shrimpcluster
+      -Chttp.cors.enabled=true
+      -Chttp.cors.allow-origin="*"
+    environment:
+      CRATE_HEAP_SIZE: "${CRATE_HEAP_SIZE:-1g}"
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:4200:4200" # Admin UI + HTTP
+    volumes:
+      - crate-data:/data
+    healthcheck:
+      test:
+        ["CMD-SHELL", "curl -fs http://localhost:4200/ > /dev/null || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    mem_limit: 2g
+    logging: *default-logging
+
+  # ---------------------------------------------- Orion -> CrateDB (lịch sử)
+  quantumleap:
+    image: orchestracities/quantumleap:${QL_VERSION:?Hãy đặt QL_VERSION trong .env}
+    container_name: shrimp-quantumleap
+    hostname: quantumleap
+    restart: unless-stopped
+    depends_on:
+      crate-db:
+        condition: service_healthy
+    environment:
+      CRATE_HOST: "crate-db"
+      CRATE_PORT: "4200"
+      QL_DEFAULT_DB: "crate"
+      USE_GEOCODING: "False"
+      LOGLEVEL: "${QL_LOG_LEVEL:-INFO}"
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8668:8668"
+    healthcheck:
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8668/health',timeout=5).status==200 else 1)"
+      interval: 20s
+      timeout: 10s
+      retries: 8
+      start_period: 20s
+    mem_limit: 512m
+    logging: *default-logging
+
+  # ------------------------------------------------------------------- Rule
+  node-red:
+    image: nodered/node-red:${NODERED_VERSION:?Hãy đặt NODERED_VERSION trong .env}
+    container_name: shrimp-node-red
+    hostname: node-red
+    restart: unless-stopped
+    depends_on:
+      orion:
+        condition: service_healthy
+    environment:
+      TZ: "${TZ:-Asia/Ho_Chi_Minh}"
+      # Địa chỉ dùng trong flow (đọc bằng env.get(...) hoặc ${...} trong node)
+      ORION_URL: "http://orion:1026"
+      MQTT_HOST: "emqx"
+      MQTT_PORT: "1883"
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:1880:1880"
+    volumes:
+      - node-red-data:/data
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "require('http').get('http://localhost:1880/',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"
+      interval: 20s
+      timeout: 10s
+      retries: 8
+      start_period: 30s
+    mem_limit: 512m
+    logging: *default-logging
+
+  # -------------------------------------------------------------- Dashboard
+  grafana:
+    image: grafana/grafana-oss:${GRAFANA_VERSION:?Hãy đặt GRAFANA_VERSION trong .env}
+    container_name: shrimp-grafana
+    hostname: grafana
+    restart: unless-stopped
+    depends_on:
+      crate-db:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?Hãy đặt GRAFANA_ADMIN_PASSWORD trong .env}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      TZ: "${TZ:-Asia/Ho_Chi_Minh}"
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      # Cấu hình datasource/dashboard bằng file (để nhóm khác dùng lại):
+      - ../config/grafana/provisioning:/etc/grafana/provisioning
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 8
+      start_period: 20s
+    mem_limit: 512m
+    logging: *default-logging
+
+volumes:
+  emqx-data:
+  emqx-log:
+  mongo-data:
+  crate-data:
+  node-red-data:
+  grafana-data:
