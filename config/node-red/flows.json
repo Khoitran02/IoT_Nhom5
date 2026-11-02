@@ -4,7 +4,7 @@
     "type": "tab",
     "label": "Shrimp Pond Rule Engine",
     "disabled": false,
-    "info": "Hệ thống Rule Engine giám sát chất lượng nước và tự động điều khiển sục khí ao tôm (FIWARE Architecture)"
+    "info": "He thong Rule Engine giam sat chat luong nuoc va tu dong dieu khien suc khi ao tom (FIWARE Architecture)"
   },
   {
     "id": "http_in_notify",
@@ -36,7 +36,7 @@
     "id": "inject_test_low_do",
     "type": "inject",
     "z": "tab_shrimp_rule_engine",
-    "name": "Thử nghiệm: DO thấp (3.2 mg/L)",
+    "name": "Thu nghiem: DO thap (3.2 mg/L)",
     "props": [
       {
         "p": "payload",
@@ -59,7 +59,7 @@
     "id": "inject_test_high_do",
     "type": "inject",
     "z": "tab_shrimp_rule_engine",
-    "name": "Thử nghiệm: DO cao (6.5 mg/L)",
+    "name": "Thu nghiem: DO cao (6.5 mg/L)",
     "props": [
       {
         "p": "payload",
@@ -83,7 +83,7 @@
     "type": "function",
     "z": "tab_shrimp_rule_engine",
     "name": "Rule Engine (DO, pH, Temp)",
-    "func": "// Rule Engine: Giám sát ngưỡng chất lượng nước và ra quyết định điều khiển sục khí\n// Input: msg.payload từ Orion Context Broker (NGSI-v2 Subscription)\n\nconst data = msg.payload.data;\nif (!Array.isArray(data) || data.length === 0) {\n    return null;\n}\n\n// Hàm trích xuất giá trị thuộc tính (hỗ trợ cả keyValues và normalized format)\nfunction getAttrValue(entity, attrName) {\n    if (!entity || entity[attrName] === undefined || entity[attrName] === null) return null;\n    if (typeof entity[attrName] === 'object' && entity[attrName] !== null && 'value' in entity[attrName]) {\n        return entity[attrName].value;\n    }\n    return entity[attrName];\n}\n\nconst commands = [];\nconst alerts = [];\n\nfor (let i = 0; i < data.length; i++) {\n    const pond = data[i];\n    const pondId = pond.id; // ví dụ: urn:ngsi-ld:Pond:001\n    const doVal = getAttrValue(pond, 'dissolvedOxygen');\n    const phVal = getAttrValue(pond, 'pH');\n    const tempVal = getAttrValue(pond, 'temperature');\n    const salVal = getAttrValue(pond, 'salinity');\n    const aeratorState = (getAttrValue(pond, 'aeratorState') || '').toUpperCase();\n\n    let targetAerator = null;\n    let triggerReason = '';\n\n    // RULE 1: Nhiệt độ cao (> 33°C) -> Cảnh báo + kích hoạt sục khí\n    if (tempVal !== null && tempVal > 33.0) {\n        alerts.push({\n            pondId: pondId,\n            level: 'WARNING',\n            metric: 'temperature',\n            value: tempVal,\n            message: `[${pondId}] Nhiệt độ nước cao (${tempVal}°C > 33°C). Bật sục khí hỗ trợ!`,\n            timestamp: new Date().toISOString()\n        });\n        targetAerator = 'ON';\n        triggerReason = `Nhiệt độ cao (${tempVal}°C)`;\n    }\n\n    // RULE 2: Ngưỡng Oxy hòa tan (DO)\n    // - DO < 4.0 mg/L -> Bật sục khí\n    // - DO > 6.0 mg/L -> Tắt sục khí (Hysteresis chống giật rơ-le)\n    if (doVal !== null) {\n        if (doVal < 4.0) {\n            targetAerator = 'ON';\n            triggerReason = `DO thấp (${doVal} mg/L < 4.0 mg/L)`;\n            if (doVal < 2.5) {\n                alerts.push({\n                    pondId: pondId,\n                    level: 'CRITICAL',\n                    metric: 'dissolvedOxygen',\n                    value: doVal,\n                    message: `[${pondId}] NGUY CẤP! DO tụt sâu (${doVal} mg/L < 2.5 mg/L). Đang bật sục khí khẩn cấp!`,\n                    timestamp: new Date().toISOString()\n                });\n            } else {\n                alerts.push({\n                    pondId: pondId,\n                    level: 'WARNING',\n                    metric: 'dissolvedOxygen',\n                    value: doVal,\n                    message: `[${pondId}] Cảnh báo: DO thấp (${doVal} mg/L < 4.0 mg/L). Bật sục khí.`,\n                    timestamp: new Date().toISOString()\n                });\n            }\n        } else if (doVal > 6.0 && (tempVal === null || tempVal <= 33.0)) {\n            targetAerator = 'OFF';\n            triggerReason = `DO dồi dào (${doVal} mg/L > 6.0 mg/L)`;\n        }\n    }\n\n    // RULE 3: pH bất thường ngoài khoảng 7.5 - 8.5\n    if (phVal !== null && (phVal < 7.5 || phVal > 8.5)) {\n        alerts.push({\n            pondId: pondId,\n            level: 'WARNING',\n            metric: 'pH',\n            value: phVal,\n            message: `[${pondId}] Cảnh báo: pH bất thường (${phVal} nằm ngoài 7.5 - 8.5)!`,\n            timestamp: new Date().toISOString()\n        });\n    }\n\n    // Chỉ gửi lệnh khi cần chuyển đổi trạng thái thực sự (tránh spam lệnh)\n    if (targetAerator !== null && targetAerator !== aeratorState) {\n        commands.push({\n            url: `http://orion:1026/v2/entities/${encodeURIComponent(pondId)}/attrs`,\n            method: 'PATCH',\n            headers: {\n                'Content-Type': 'application/json',\n                'fiware-service': 'shrimp',\n                'fiware-servicepath': '/'\n            },\n            payload: {\n                'aerator': {\n                    'type': 'command',\n                    'value': targetAerator\n                }\n            },\n            info: `[${pondId}] Chuyển aerator từ ${aeratorState || 'UNKNOWN'} sang ${targetAerator} do ${triggerReason}`,\n            pondId: pondId,\n            targetAerator: targetAerator\n        });\n    }\n}\n\n// Output 1: Danh sách các lệnh điều khiển gửi tới Orion\n// Output 2: Danh sách các cảnh báo (Alerts)\nconst alertMsg = alerts.length > 0 ? { payload: alerts } : null;\nreturn [commands, alertMsg];",
+    "func": "// Rule Engine: Giam sat nguong chat luong nuoc va ra quyet dinh dieu khien suc khi\n// Input: msg.payload tu Orion Context Broker (NGSI-v2 Subscription)\n\nconst data = msg.payload.data;\nif (!Array.isArray(data) || data.length === 0) {\n    return null;\n}\n\n// Ham trich xuat gia tri thuoc tinh (ho tro ca keyValues va normalized format)\nfunction getAttrValue(entity, attrName) {\n    if (!entity || entity[attrName] === undefined || entity[attrName] === null) return null;\n    if (typeof entity[attrName] === 'object' && entity[attrName] !== null && 'value' in entity[attrName]) {\n        return entity[attrName].value;\n    }\n    return entity[attrName];\n}\n\nconst commands = [];\nconst alerts = [];\n\nfor (let i = 0; i < data.length; i++) {\n    const pond = data[i];\n    const pondId = pond.id; // vi du: urn:ngsi-ld:Pond:001\n    const doVal = getAttrValue(pond, 'dissolvedOxygen');\n    const phVal = getAttrValue(pond, 'pH');\n    const tempVal = getAttrValue(pond, 'temperature');\n    const salVal = getAttrValue(pond, 'salinity');\n    const aeratorState = (getAttrValue(pond, 'aeratorState') || '').toUpperCase();\n\n    let targetAerator = null;\n    let triggerReason = '';\n\n    // RULE 1: Nhiet do cao (> 33 oC) -> Canh bao + kich hoat suc khi\n    if (tempVal !== null && tempVal > 33.0) {\n        alerts.push({\n            pondId: pondId,\n            level: 'WARNING',\n            metric: 'temperature',\n            value: tempVal,\n            message: `[${pondId}] Nhiet do nuoc cao (${tempVal} oC > 33 oC). Bat suc khi ho tro!`,\n            timestamp: new Date().toISOString()\n        });\n        targetAerator = 'ON';\n        triggerReason = `Nhiet do cao (${tempVal} oC)`;\n    }\n\n    // RULE 2: Nguong Oxy hoa tan (DO)\n    // - DO < 4.0 mg/L -> Bat suc khi\n    // - DO > 6.0 mg/L -> Tat suc khi (Hysteresis chong dong ngat lien tuc)\n    if (doVal !== null) {\n        if (doVal < 4.0) {\n            targetAerator = 'ON';\n            triggerReason = `DO thap (${doVal} mg/L < 4.0 mg/L)`;\n            if (doVal < 2.5) {\n                alerts.push({\n                    pondId: pondId,\n                    level: 'CRITICAL',\n                    metric: 'dissolvedOxygen',\n                    value: doVal,\n                    message: `[${pondId}] NGUY CAP! DO tut sau (${doVal} mg/L < 2.5 mg/L). Bat suc khi khan cap!`,\n                    timestamp: new Date().toISOString()\n                });\n            } else {\n                alerts.push({\n                    pondId: pondId,\n                    level: 'WARNING',\n                    metric: 'dissolvedOxygen',\n                    value: doVal,\n                    message: `[${pondId}] Canh bao: DO thap (${doVal} mg/L < 4.0 mg/L). Bat suc khi.`,\n                    timestamp: new Date().toISOString()\n                });\n            }\n        } else if (doVal > 6.0 && (tempVal === null || tempVal <= 33.0)) {\n            targetAerator = 'OFF';\n            triggerReason = `DO doi dao (${doVal} mg/L > 6.0 mg/L)`;\n        }\n    }\n\n    // RULE 3: pH bat thuong ngoai khoang 7.5 - 8.5\n    if (phVal !== null && (phVal < 7.5 || phVal > 8.5)) {\n        alerts.push({\n            pondId: pondId,\n            level: 'WARNING',\n            metric: 'pH',\n            value: phVal,\n            message: `[${pondId}] Canh bao: pH bat thuong (${phVal} nam ngoai 7.5 - 8.5)!`,\n            timestamp: new Date().toISOString()\n        });\n    }\n\n    // Chi gui lenh khi can chuyen doi trang thai thuc su\n    if (targetAerator !== null && targetAerator !== aeratorState) {\n        commands.push({\n            url: `http://orion:1026/v2/entities/${encodeURIComponent(pondId)}/attrs`,\n            method: 'PATCH',\n            headers: {\n                'Content-Type': 'application/json',\n                'fiware-service': 'shrimp',\n                'fiware-servicepath': '/'\n            },\n            payload: {\n                'aerator': {\n                    'type': 'command',\n                    'value': targetAerator\n                }\n            },\n            info: `[${pondId}] Chuyen aerator tu ${aeratorState || 'UNKNOWN'} sang ${targetAerator} do ${triggerReason}`,\n            pondId: pondId,\n            targetAerator: targetAerator\n        });\n    }\n}\n\n// Output 1: Danh sach lenh dieu khien gui toi Orion\n// Output 2: Danh sach canh bao (Alerts)\nconst alertMsg = alerts.length > 0 ? { payload: alerts } : null;\nreturn [commands, alertMsg];",
     "outputs": 2,
     "noerr": 0,
     "initialize": "",
@@ -100,7 +100,7 @@
     "id": "http_req_orion_cmd",
     "type": "http request",
     "z": "tab_shrimp_rule_engine",
-    "name": "Gửi Command tới Orion",
+    "name": "Gui Command toi Orion",
     "method": "use",
     "ret": "txt",
     "paytoqs": "ignore",
@@ -122,7 +122,7 @@
     "id": "debug_cmd",
     "type": "debug",
     "z": "tab_shrimp_rule_engine",
-    "name": "Lệnh sục khí đã phát",
+    "name": "Lenh suc khi da phat",
     "active": true,
     "tosidebar": true,
     "console": true,
@@ -139,7 +139,7 @@
     "id": "debug_cmd_result",
     "type": "debug",
     "z": "tab_shrimp_rule_engine",
-    "name": "Kết quả từ Orion API",
+    "name": "Ket qua tu Orion API",
     "active": true,
     "tosidebar": true,
     "console": false,
@@ -156,7 +156,7 @@
     "id": "debug_alerts",
     "type": "debug",
     "z": "tab_shrimp_rule_engine",
-    "name": "Cảnh báo chất lượng nước (Alerts)",
+    "name": "Canh bao chat luong nuoc (Alerts)",
     "active": true,
     "tosidebar": true,
     "console": true,
@@ -170,4 +170,3 @@
     "wires": []
   }
 ]
-

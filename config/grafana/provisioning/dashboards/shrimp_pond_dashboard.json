@@ -1,0 +1,1069 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": 1,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "title": "Chi so tuc thoi cua $pond_id",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cratedb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#e02f44",
+                "value": null
+              },
+              {
+                "color": "#fa8f3d",
+                "value": 2.5
+              },
+              {
+                "color": "#ffdd57",
+                "value": 4
+              },
+              {
+                "color": "#56a64b",
+                "value": 6
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cratedb"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT time_index AS \"time\", dissolvedoxygen AS \"DO (mg/L)\" FROM mtshrimp.etpond WHERE entity_id = '$pond_id' AND $__timeFilter(time_index) ORDER BY time_index ASC",
+          "refId": "A"
+        }
+      ],
+      "title": "Oxy hoa tan (DO)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cratedb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#e02f44",
+                "value": null
+              },
+              {
+                "color": "#56a64b",
+                "value": 7.5
+              },
+              {
+                "color": "#e02f44",
+                "value": 8.5
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 5,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cratedb"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT time_index AS \"time\", ph AS \"pH\" FROM mtshrimp.etpond WHERE entity_id = '$pond_id' AND $__timeFilter(time_index) ORDER BY time_index ASC",
+          "refId": "A"
+        }
+      ],
+      "title": "Do pH",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cratedb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#5794f2",
+                "value": null
+              },
+              {
+                "color": "#56a64b",
+                "value": 25
+              },
+              {
+                "color": "#e02f44",
+                "value": 33
+              }
+            ]
+          },
+          "unit": "celsius"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 9,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cratedb"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT time_index AS \"time\", temperature AS \"Nhiet do\" FROM mtshrimp.etpond WHERE entity_id = '$pond_id' AND $__timeFilter(time_index) ORDER BY time_index ASC",
+          "refId": "A"
+        }
+      ],
+      "title": "Nhiet do nuoc",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cratedb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#ffdd57",
+                "value": null
+              },
+              {
+                "color": "#56a64b",
+                "value": 10
+              },
+              {
+                "color": "#e02f44",
+                "value": 30
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 14,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cratedb"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT time_index AS \"time\", salinity AS \"Do man (ppt)\" FROM mtshrimp.etpond WHERE entity_id = '$pond_id' AND $__timeFilter(time_index) ORDER BY time_index ASC",
+          "refId": "A"
+        }
+      ],
+      "title": "Do man (Salinity)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cratedb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "#52545c",
+                  "index": 1,
+                  "text": "TAT (OFF)"
+                },
+                "1": {
+                  "color": "#56a64b",
+                  "index": 0,
+                  "text": "BAT (ON)"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#52545c",
+                "value": null
+              },
+              {
+                "color": "#56a64b",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 19,
+        "y": 1
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cratedb"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT time_index AS \"time\", CASE WHEN aeratorstate = 'ON' THEN 1 ELSE 0 END AS \"Suc khi\" FROM mtshrimp.etpond WHERE entity_id = '$pond_id' AND $__timeFilter(time_index) ORDER BY time_index ASC",
+          "refId": "A"
+        }
+      ],
+      "title": "Trang thai suc khi",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 101,
+      "title": "Dien bien chat luong nuoc & Nguong dieu khien suc khi",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cratedb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "#e02f44",
+                "value": 2.5
+              },
+              {
+                "color": "#fa8f3d",
+                "value": 4
+              },
+              {
+                "color": "#56a64b",
+                "value": 6
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DO (mg/L)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#5794f2",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 15
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 0,
+        "y": 6
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "min",
+            "max",
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cratedb"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT time_index AS \"time\", dissolvedoxygen AS \"DO (mg/L)\" FROM mtshrimp.etpond WHERE entity_id = '$pond_id' AND $__timeFilter(time_index) ORDER BY time_index ASC",
+          "refId": "A"
+        }
+      ],
+      "title": "Bieu do Oxy hoa tan (DO) & Nguong suc khi (Do: <2.5, Cam: <4, Xanh: >6)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cratedb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "#52545c",
+                  "index": 1,
+                  "text": "TAT (0)"
+                },
+                "1": {
+                  "color": "#56a64b",
+                  "index": 0,
+                  "text": "BAT (1)"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#52545c",
+                "value": null
+              },
+              {
+                "color": "#56a64b",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Suc khi"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#56a64b",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 25
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 6
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cratedb"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT time_index AS \"time\", CASE WHEN aeratorstate = 'ON' THEN 1 ELSE 0 END AS \"Suc khi\" FROM mtshrimp.etpond WHERE entity_id = '$pond_id' AND $__timeFilter(time_index) ORDER BY time_index ASC",
+          "refId": "A"
+        }
+      ],
+      "title": "Lich su dong/ngat suc khi (1=BAT, 0=TAT)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cratedb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "decimals": 2
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pH"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#73bf69",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "left"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Nhiet do (oC)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#f2495c",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "celsius"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 0,
+        "y": 14
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "min",
+            "max",
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cratedb"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT time_index AS \"time\", ph AS \"pH\" FROM mtshrimp.etpond WHERE entity_id = '$pond_id' AND $__timeFilter(time_index) ORDER BY time_index ASC",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cratedb"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT time_index AS \"time\", temperature AS \"Nhiet do (oC)\" FROM mtshrimp.etpond WHERE entity_id = '$pond_id' AND $__timeFilter(time_index) ORDER BY time_index ASC",
+          "refId": "B"
+        }
+      ],
+      "title": "Bieu do pH & Nhiet do nuoc",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cratedb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Do man (ppt)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#b877d9",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 10
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 14,
+        "y": 14
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "min",
+            "max",
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cratedb"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT time_index AS \"time\", salinity AS \"Do man (ppt)\" FROM mtshrimp.etpond WHERE entity_id = '$pond_id' AND $__timeFilter(time_index) ORDER BY time_index ASC",
+          "refId": "A"
+        }
+      ],
+      "title": "Bieu do Do man (Salinity)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "id": 102,
+      "title": "Tong hop & Bao cao thong ke (Aggregation & Analytics)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cratedb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "lineWidth": 1,
+            "spanNulls": false
+          },
+          "decimals": 2,
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 0,
+        "y": 23
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cratedb"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('hour', time_index) AS \"time\", avg(dissolvedoxygen) AS \"DO TB theo gio\" FROM mtshrimp.etpond WHERE entity_id = '$pond_id' AND $__timeFilter(time_index) GROUP BY 1 ORDER BY 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Tong hop trung binh DO theo gio (Hourly Aggregation)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cratedb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Suc khi"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "OFF": {
+                        "color": "#52545c",
+                        "index": 1,
+                        "text": "TAT"
+                      },
+                      "ON": {
+                        "color": "#56a64b",
+                        "index": 0,
+                        "text": "BAT"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DO (mg/L)"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "#e02f44",
+                      "value": null
+                    },
+                    {
+                      "color": "#fa8f3d",
+                      "value": 2.5
+                    },
+                    {
+                      "color": "#ffdd57",
+                      "value": 4
+                    },
+                    {
+                      "color": "#56a64b",
+                      "value": 6
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 10,
+        "y": 23
+      },
+      "id": 11,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Thoi gian"
+          }
+        ]
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cratedb"
+          },
+          "format": "table",
+          "rawSql": "SELECT time_index AS \"Thoi gian\", entity_id AS \"Ao nuoi\", dissolvedoxygen AS \"DO (mg/L)\", ph AS \"pH\", temperature AS \"Nhiet do (oC)\", salinity AS \"Do man (ppt)\", aeratorstate AS \"Suc khi\" FROM mtshrimp.etpond WHERE $__timeFilter(time_index) ORDER BY time_index DESC LIMIT 50",
+          "refId": "A"
+        }
+      ],
+      "title": "Bang do luong gan nhat (Tat ca cac ao)",
+      "type": "table"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": [
+    "shrimp",
+    "fiware",
+    "cratedb",
+    "iot"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "urn:ngsi-ld:Pond:001",
+          "value": "urn:ngsi-ld:Pond:001"
+        },
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "cratedb"
+        },
+        "definition": "SELECT DISTINCT entity_id FROM mtshrimp.etpond ORDER BY entity_id ASC",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Chon ao nuoi",
+        "multi": false,
+        "name": "pond_id",
+        "options": [],
+        "query": "SELECT DISTINCT entity_id FROM mtshrimp.etpond ORDER BY entity_id ASC",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m"
+    ]
+  },
+  "timezone": "browser",
+  "title": "He thong giam sat ao nuoi tom (Shrimp Pond Monitoring)",
+  "uid": "shrimp-pond-monitor",
+  "version": 2,
+  "weekStart": ""
+}

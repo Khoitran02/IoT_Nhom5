@@ -262,12 +262,12 @@ RESET=1 bash source/provision.sh
 
 ────────────────────────────────────────────────────────────────────────────
 
-Tổng tiến độ ước tính: ██████████░░░░░░░░░░ ~48-50%
+Tổng tiến độ ước tính: ████████████░░░░░░░░  ~57-60%
 
-Tuần 1 (Nền tảng) : ████████████████████ 100%
-Tuần 2 (Kết nối + Rule): ██████████████████░░ ~85%
-Tuần 3 (Dashboard + QA): ██░░░░░░░░░░░░░░░░░░ ~15%
-Tuần 4 (Test + Báo cáo): ░░░░░░░░░░░░░░░░░░░░ ~0%
+Tuần 1 (Nền tảng)      : ████████████████████  100%
+Tuần 2 (Kết nối + Rule): ████████████████████  100%
+Tuần 3 (Dashboard + QA): ████████████████░░░░  ~80%
+Tuần 4 (Test + Báo cáo): █████░░░░░░░░░░░░░░░  ~25%
 
 ## 3.2 CHI TIẾT TỪNG TASK
 
@@ -349,16 +349,16 @@ Mô tả : Nhận notification từ Orion webhook (/notify). Rules:
 • DO < 2.5 mg/L → Cảnh báo khẩn cấp
 Trạng thái: HOÀN THÀNH (Đã deploy và kiểm thử qua API Node-RED)
 
-[⬜] TASK 3.2 — Grafana Dashboard
-File : (chưa có, cần provisioning hoặc export JSON)
-Mô tả : Dashboard hiển thị:
-• Biểu đồ DO, pH, temperature, salinity theo thời gian
-• Trạng thái sục khí (ON/OFF) mỗi ao
-• Cảnh báo khi vượt ngưỡng
-• Tổng hợp trung bình DO theo giờ (aggregation)
-• Hỗ trợ chọn ao (variable/dropdown)
-Trạng thái: CHƯA THỰC HIỆN
-Ưu tiên : 🔴 CAO
+  [✅] TASK 3.2 — Grafana Dashboard
+       File    : config/grafana/provisioning/dashboards/shrimp_pond_dashboard.json, dashboards.yml
+       Mô tả  : Dashboard hiển thị:
+                 • Biểu đồ DO, pH, temperature, salinity theo thời gian
+                 • Trạng thái sục khí (ON/OFF) mỗi ao
+                 • Cảnh báo màu theo ngưỡng (DO, pH, Nhiệt độ)
+                 • Tổng hợp trung bình DO theo giờ (hourly aggregation)
+                 • Hỗ trợ chọn ao qua dropdown ($pond_id)
+                 • Bảng dữ liệu gần nhất của tất cả các ao
+       Trạng thái: HOÀN THÀNH (Đã provision & import API thành công tại /d/shrimp-pond-monitor)
 
 [✅] TASK 3.3 — Subscription Orion → Node-RED (notification)
 File : source/provision.sh
@@ -370,16 +370,15 @@ Trạng thái: HOÀN THÀNH (Đã tích hợp provision.sh, sub active 200 OK)
 GIAI ĐOẠN 4: KIỂM THỬ & ĐÁNH GIÁ
 ═══════════════════════════════════════════════════════════════════════
 
-[⬜] TASK 4.1 — 5 Test Scenario
-File : (chưa có)
-Mô tả :
-Kịch bản 1: Hoạt động bình thường (tất cả thông số trong ngưỡng)
-Kịch bản 2: DO xuống thấp (< 4 mg/L)
-Kịch bản 3: Tự động bật sục khí → DO hồi phục → tự tắt
-Kịch bản 4: Giám sát nhiều ao đồng thời
-Kịch bản 5: Xem lại dữ liệu lịch sử trên Grafana
-Trạng thái: CHƯA THỰC HIỆN
-Ưu tiên : 🟡 TRUNG BÌNH
+  [✅] TASK 4.1 — 5 Test Scenario
+       File    : source/test_scenarios.py, tests/TEST_REPORT.md
+       Mô tả  :
+                 Kịch bản 1: Hoạt động bình thường (tất cả thông số trong ngưỡng)
+                 Kịch bản 2: DO xuống thấp (< 4 mg/L) → Tự động bật sục khí
+                 Kịch bản 3: Tự động bật sục khí → DO hồi phục (> 6 mg/L) → tự tắt
+                 Kịch bản 4: Giám sát nhiều ao đồng thời (5 ao độc lập)
+                 Kịch bản 5: Xem lại dữ liệu lịch sử trên Grafana / CrateDB aggregation
+       Trạng thái: HOÀN THÀNH (Script tự động 100% PASS 5/5 kịch bản)
 
 [⬜] TASK 4.2 — Đo hiệu năng (Throughput / Latency)
 File : (chưa có)
@@ -464,9 +463,9 @@ Trạng thái: CHƯA THỰC HIỆN
 │ 2.3 │ Chạy thử stack & verify end-to-end │ ✅ │ - │
 │ 2.4 │ Firmware Wokwi (ESP32) │ ⬜ │ 🟡 │
 │ 3.1 │ Node-RED Flow (Rule Engine) │ ✅ │ - │
-│ 3.2 │ Grafana Dashboard │ ⬜ │ 🔴 │
+│ 3.2 │ Grafana Dashboard │ ✅ │ - │
 │ 3.3 │ Subscription Orion → Node-RED │ ✅ │ - │
-│ 4.1 │ 5 Test Scenario │ ⬜ │ 🟡 │
+│ 4.1 │ 5 Test Scenario │ ✅ │ - │
 │ 4.2 │ Đo hiệu năng (Scale test) │ ⬜ │ 🟡 │
 │ 4.3 │ Thử nghiệm độ tin cậy │ ⬜ │ 🟢 │
 │ 5.1 │ Triển khai nhiều máy │ ⬜ │ 🟢 │
@@ -476,7 +475,7 @@ Trạng thái: CHƯA THỰC HIỆN
 │ 6.3 │ Video demo (8-12 phút) │ ⬜ │ 🟡 │
 │ 6.4 │ Slide thuyết trình (10-15 slide) │ ⬜ │ 🟡 │
 ├──────┴──────────────────────────────────────────────┴───────────┴──────────┤
-│ TỔNG: 10/21 hoàn thành │ Tiến độ: ~48% │ Ưu tiên cao còn lại: 1 task │
+│ TỔNG: 12/21 hoàn thành │ Tiến độ: ~57% │ Toàn bộ ưu tiên cao (🔴) ĐÃ HOÀN THÀNH! │
 └───────────────────────────────────────────────────────────────────────────┘
 
 ## 3.4 HÀNH ĐỘNG TIẾP THEO (ĐỀ XUẤT THỨ TỰ)
