@@ -1,0 +1,6 @@
+# Danh sach thu vien Arduino cho Wokwi Simulator
+PubSubClient
+OneWire
+DallasTemperature
+ArduinoJson
+
