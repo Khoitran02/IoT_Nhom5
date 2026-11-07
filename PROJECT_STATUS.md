@@ -111,26 +111,53 @@ qua Orion→IoT Agent
 
 ────────────────────────────────────────────────────────────────────────────
 IoT_Nhom5/
-├── .env # Biến môi trường (KHÔNG commit)
-├── .env.example # Mẫu .env để chia sẻ
-├── gitignore # Loại trừ .env khỏi Git
-├── duan0.md # Tài liệu: yêu cầu, công cụ, lộ trình
-├── duan1.md # Tài liệu: triển khai 1 hay nhiều máy
-├── duan2.md # Tài liệu: chi tiết từng bước
+├── .env                    # Biến môi trường (KHÔNG commit)
+├── .env.example            # Mẫu .env để chia sẻ
+├── .gitignore              # Loại trừ .env khỏi Git
+├── README.md               # Hướng dẫn tổng thể
+├── PROJECT_STATUS.md       # Báo cáo tiến độ chi tiết
 │
 ├── docker/
-│ └── docker-compose.yml # Stack 8 services (all-in-one)
+│   └── docker-compose.yml  # Stack 8 services (all-in-one)
 │
 ├── config/
-│ └── grafana/
-│ └── provisioning/
-│ └── datasources/
-│ └── cratedb.yml # Auto-provision datasource CrateDB
+│   ├── grafana/
+│   │   └── provisioning/
+│   │       ├── datasources/cratedb.yml
+│   │       └── dashboards/shrimp_pond_dashboard.json, dashboards.yml
+│   └── node-red/
+│       └── flows.json      # Rule Engine Hysteresis Flow
 │
-└── source/
-├── simulator.py # Giả lập N ao tôm (Python + MQTT)
-├── provision.sh # Tạo service group, thiết bị, subscription
-└── requirements.txt # paho-mqtt>=1.6
+├── wokwi/                  # Thiết bị mô phỏng phần cứng ESP32
+│   ├── sketch.ino          # Firmware C++ ESP32 Wokwi
+│   ├── diagram.json        # Sơ đồ mạch linh kiện Wokwi
+│   ├── libraries.txt       # Thư viện Arduino Wokwi
+│   ├── wokwi.toml          # Cấu hình dự án Wokwi
+│   └── README_WOKWI.md     # Hướng dẫn chạy Wokwi & MQTT Bridge
+│
+├── source/                 # Mã nguồn công cụ và kiểm thử
+│   ├── simulator.py        # Giả lập N ao tôm (Python + MQTT)
+│   ├── setup_emqx_bridge.py # Cấu hình MQTT Bridge 2 chiều trên EMQX
+│   ├── verify_bidirectional_bridge.py # Kiểm chứng bridge 2 chiều
+│   ├── prove_closed_loop.py # Chứng minh chu trình tự động khép kín
+│   ├── test_wokwi_loop.py  # Kiểm chứng chu trình khép kín với Wokwi
+│   ├── test_scenarios.py   # Kiểm thử 5 kịch bản hoạt động
+│   ├── benchmark_scale.py  # Đo hiệu năng scale (5 -> 100 ao) và CPU/RAM
+│   ├── test_reliability.py # Kiểm tra độ tin cậy và chịu lỗi
+│   ├── health_check.py     # Kiểm tra toàn diện 8 service
+│   ├── update_dashboard.py # Đồng bộ Grafana Dashboard qua REST API
+│   ├── provision.sh        # Tạo service group, thiết bị, subscription
+│   └── requirements.txt    # paho-mqtt, requests
+│
+├── tests/                  # Báo cáo kết quả kiểm thử thực tế
+│   ├── TEST_REPORT.md      # Kết quả 5 Test Scenarios (100% PASS)
+│   ├── BENCHMARK_REPORT.md # Báo cáo Scale Benchmark (Throughput & CPU/RAM)
+│   ├── RELIABILITY_REPORT.md # Báo cáo độ tin cậy (4/4 PASS)
+│   └── CLOSED_LOOP_EVIDENCE.md # Nhật ký chi tiết chu trình tự động khép kín
+│
+└── docs/                   # Báo cáo và tài liệu nộp
+    ├── BAO_CAO_DU_AN.md    # Báo cáo dự án chuẩn 7 chương IIAF
+    └── DANH_MUC_HINH_ANH_MINH_CHUNG.md # Danh mục & hướng dẫn chụp 16 ảnh minh chứng
 
 ## 2.2 DOCKER SERVICES (8 CONTAINER)
 
@@ -185,7 +212,7 @@ Payload: {"do":5.4, "ph":7.9, "t":29.1, "s":15.2, "a":"OFF"}
 
 Nhận lệnh (platform → thiết bị):
 Topic : /{apikey}/{device_id}/cmd
-Payload: {"aerator": {"state": "ON"}}
+Payload: {"aerator": "ON"}
 
 Trả kết quả lệnh (thiết bị → platform):
 Topic : /{apikey}/{device_id}/cmdexe
@@ -202,18 +229,18 @@ Ví dụ cho ao 1:
 Entity Name : urn:ngsi-ld:Pond:001 .. urn:ngsi-ld:Pond:N
 Entity Type : Pond
 
-┌───────────────────┬──────────┬────────────┬──────────────────────────┐
-│ Attribute │ Type │ object_id │ Ý nghĩa │
-├───────────────────┼──────────┼────────────┼──────────────────────────┤
-│ dissolvedOxygen │ Number │ do │ Oxy hòa tan (mg/L) │
-│ pH │ Number │ ph │ Độ pH │
-│ temperature │ Number │ t │ Nhiệt độ nước (°C) │
-│ salinity │ Number │ s │ Độ mặn (ppt) │
-│ aeratorState │ Text │ a │ Trạng thái sục khí │
-│ aerator │ command │ - │ Lệnh bật/tắt sục khí │
-│ aerator_status │ cmdStatus│ - │ Kết quả thực hiện lệnh │
-│ aerator_info │ cmdResult│ - │ Thông tin phản hồi │
-└───────────────────┴──────────┴────────────┴──────────────────────────┘
+┌───────────────────┬───────────────┬────────────┬──────────────────────────┐
+│ Attribute         │ Type          │ object_id  │ Ý nghĩa                  │
+├───────────────────┼───────────────┼────────────┼──────────────────────────┤
+│ dissolvedOxygen   │ Number        │ do         │ Oxy hòa tan (mg/L)       │
+│ pH                │ Number        │ ph         │ Độ pH                    │
+│ temperature       │ Number        │ t          │ Nhiệt độ nước (°C)       │
+│ salinity          │ Number        │ s          │ Độ mặn (ppt)             │
+│ aeratorState      │ Text          │ a          │ Trạng thái sục khí       │
+│ aerator           │ command       │ -          │ Lệnh bật/tắt sục khí     │
+│ aerator_status    │ commandStatus │ -          │ Kết quả thực hiện lệnh   │
+│ aerator_info      │ commandResult │ -          │ Thông tin phản hồi       │
+└───────────────────┴───────────────┴────────────┴──────────────────────────┘
 
 ## 2.6 SIMULATOR (source/simulator.py)
 
@@ -262,12 +289,12 @@ RESET=1 bash source/provision.sh
 
 ────────────────────────────────────────────────────────────────────────────
 
-Tổng tiến độ ước tính: ███████████████░░░░░  ~76%
+Tổng tiến độ ước tính: ████████████████░░░░  ~81%
 
 Tuần 1 (Nền tảng)      : ████████████████████  100%
 Tuần 2 (Kết nối + Rule): ████████████████████  100%
 Tuần 3 (Dashboard + QA): ████████████████████  100%
-Tuần 4 (Test + Báo cáo): ██████████░░░░░░░░░░  ~50%
+Tuần 4 (Test + Báo cáo): ███████████████░░░░░  ~75%
 
 ## 3.2 CHI TIẾT TỪNG TASK
 
@@ -328,12 +355,12 @@ Mô tả : docker compose up → provision → simulator →
 kiểm tra entity trong Orion → dữ liệu trong CrateDB
 Trạng thái: HOÀN THÀNH (8 containers healthy, CrateDB >20.000 records)
 
-  [✅] TASK 2.4 — Firmware Wokwi (ESP32)
-       File    : wokwi/sketch.ino, wokwi/diagram.json, wokwi/libraries.txt, wokwi/README_WOKWI.md
-       Mô tả  : Code Arduino C++ cho ESP32 trên Wokwi, đọc cảm biến
-                 (biến trở DO, pH, Độ mặn, OneWire DS18B20), gửi MQTT,
-                 nhận lệnh điều khiển Relay + LED sục khí
-       Trạng thái: HOÀN THÀNH (Đã cấu hình sơ đồ mạch và firmware đầy đủ)
+  [✅] TASK 2.4 — Firmware & Sơ đồ mạch Wokwi ESP32 cho cả 5 Ao Nuôi
+       File    : wokwi/pond001..pond005 (sketch.ino, diagram.json, libraries.txt), README_WOKWI.md
+       Mô tả  : Bộ 5 dự án Wokwi ESP32 độc lập cho 5 ao nuôi. Mỗi trạm gồm 4 cảm biến
+                 (biến trở DO, pH, Độ mặn, DS18B20 OneWire) + 1 cơ cấu chấp hành (Relay + LED xanh).
+                 Hạ tầng 15 MQTT Bridge 2 chiều trên EMQX kết nối broker.emqx.io.
+       Trạng thái: HOÀN THÀNH (Đã kiểm chứng cả 5 thiết bị Wokwi qua test_all_5_wokwi.py)
 
 ═══════════════════════════════════════════════════════════════════════
 GIAI ĐOẠN 3: RULE ENGINE & DASHBOARD
@@ -380,19 +407,22 @@ GIAI ĐOẠN 4: KIỂM THỬ & ĐÁNH GIÁ
                  Kịch bản 5: Xem lại dữ liệu lịch sử trên Grafana / CrateDB aggregation
        Trạng thái: HOÀN THÀNH (Script tự động 100% PASS 5/5 kịch bản)
 
-  [✅] TASK 4.2 — Đo hiệu năng (Throughput / Latency)
+  [✅] TASK 4.2 — Đo hiệu năng (Throughput / Latency & Resource)
        File    : source/benchmark_scale.py, tests/BENCHMARK_REPORT.md
        Mô tả  : Mở rộng 5 → 10 → 20 → 50 → 100 ao, đo:
-                 • Message rate (msg/s)
-                 • E2E Latency: thời gian từ publish MQTT → entity update Orion
-                 • Thời gian query lịch sử CrateDB khi dữ liệu tăng
-       Trạng thái: HOÀN THÀNH (Đạt throughput 52.5 msg/s, CrateDB 4.9 ms)
+                 • Throughput (đạt 96.5 msg/s tại 100 ao)
+                 • E2E Latency: từ MQTT publish → Orion update (72 - 673 ms)
+                 • CrateDB Query Latency: 12 - 32 ms
+                 • Tỷ lệ mất gói (Packet Loss Rate): 0.0% (0 bản tin mất)
+                 • Tài nguyên CPU & RAM thực tế 8 containers (docker stats)
+       Trạng thái: HOÀN THÀNH (Đạt 96.5 msg/s, CrateDB 18 ms, 0% loss, đo CPU/RAM đầy đủ)
 
   [✅] TASK 4.3 — Thử nghiệm độ tin cậy
-       File    : source/test_reliability.py, tests/RELIABILITY_REPORT.md
+       File    : source/test_reliability.py, tests/RELIABILITY_REPORT.md, tests/CLOSED_LOOP_EVIDENCE.md
        Mô tả  : Gửi payload sai kiểu, malformed JSON, kiểm tra
-                 khả năng cách ly lỗi giữa các ao và bảo toàn state
-       Trạng thái: HOÀN THÀNH (100% PASS 4/4 bài kiểm thử độ tin cậy)
+                 khả năng cách ly lỗi giữa các ao, bảo toàn state và
+                 CHỨNG MINH VÒNG TỰ ĐỘNG KHÉP KÍN (Closed-loop proof)
+       Trạng thái: HOÀN THÀNH (100% PASS 4/4 bài test & chứng minh chu trình khép kín)
 
 ═══════════════════════════════════════════════════════════════════════
 GIAI ĐOẠN 5: TRIỂN KHAI NÂNG CAO
@@ -424,12 +454,12 @@ GIAI ĐOẠN 6: TÀI LIỆU & BÁO CÁO
                  Dành cho giảng viên và nhóm khác.
        Trạng thái: HOÀN THÀNH (Đã hoàn thiện tài liệu hướng dẫn tổng thể)
 
-[⬜] TASK 6.2 — Báo cáo (15-25 trang)
-File : (chưa có)
-Mô tả : Kiến trúc IIAF, FIWARE, data model, PoC, đánh giá,
-so sánh, kết luận
-Trạng thái: CHƯA THỰC HIỆN
-Ưu tiên : 🟡 TRUNG BÌNH
+  [✅] TASK 6.2 — Báo cáo (15-25 trang, chuẩn 7 chương IIAF)
+       File    : docs/BAO_CAO_DU_AN.md
+       Mô tả  : Kiến trúc chuẩn IIAF 6 tầng, FIWARE ecosystem, data model, PoC,
+                 bảng đối sánh tiêu chí chấm, bảng phân công 4 thành viên (mỗi người 25%),
+                 số liệu thực nghiệm CPU/RAM/Loss, tài liệu tham khảo chuẩn TCVN/FAO/Boyd.
+       Trạng thái: HOÀN THÀNH (Đã soạn thảo hoàn chỉnh 7 chương tại docs/BAO_CAO_DU_AN.md)
 
 [⬜] TASK 6.3 — Video demo (8-12 phút)
 File : (chưa có)
@@ -467,11 +497,11 @@ Trạng thái: CHƯA THỰC HIỆN
 │ 5.1 │ Triển khai nhiều máy │ ⬜ │ 🟢 │
 │ 5.2 │ Xác thực MQTT │ ⬜ │ 🟢 │
 │ 6.1 │ README.md │ ✅ │ - │
-│ 6.2 │ Báo cáo (15-25 trang) │ ⬜ │ 🟡 │
+│ 6.2 │ Báo cáo (15-25 trang) │ ✅ │ - │
 │ 6.3 │ Video demo (8-12 phút) │ ⬜ │ 🟡 │
 │ 6.4 │ Slide thuyết trình (10-15 slide) │ ⬜ │ 🟡 │
 ├──────┴──────────────────────────────────────────────┴───────────┴──────────┤
-│ TỔNG: 16/21 hoàn thành │ Tiến độ: ~76% │ Hoàn thành Giai đoạn 1, 2, 3, 4! │
+│ TỔNG: 17/21 hoàn thành │ Tiến độ: ~81% │ Hoàn thành Giai đoạn 1, 2, 3, 4, 6.1, 6.2! │
 └───────────────────────────────────────────────────────────────────────────┘
 
 ## 3.4 HÀNH ĐỘNG TIẾP THEO (ĐỀ XUẤT THỨ TỰ)
@@ -505,10 +535,9 @@ BƯỚC 5 (Tài liệu):
 → Viết báo cáo (TASK 6.2)
 → Quay video + làm slide (TASK 6.3, 6.4)
 
-BƯỚC 6 (Nâng cao, nếu còn thời gian):
-→ Firmware Wokwi ESP32 (TASK 2.4)
-→ Triển khai nhiều máy (TASK 5.1)
-→ Bật xác thực MQTT (TASK 5.2)
+BƯỚC 6 (Nâng cao cho triển khai thực tế):
+→ Triển khai phân tán nhiều máy (TASK 5.1)
+→ Kích hoạt bảo mật xác thực MQTT & TLS/mTLS trên EMQX (TASK 5.2)
 
 # ╔══════════════════════════════════════════════════════════════════════════╗
 

@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "author": "IoT Nhom 5 - Thiet bi Wokwi Ao 001 (pond002)",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-potentiometer", "id": "pot_do", "top": -120, "left": -120, "attrs": { "label": "Ao 2: DO (mg/L)" } },
+    { "type": "wokwi-potentiometer", "id": "pot_ph", "top": -120, "left": 60, "attrs": { "label": "Ao 2: pH" } },
+    { "type": "wokwi-potentiometer", "id": "pot_sal", "top": -120, "left": 240, "attrs": { "label": "Ao 2: Do man (ppt)" } },
+    { "type": "wokwi-ds18b20", "id": "temp_sensor", "top": 150, "left": -120, "attrs": { "label": "Ao 2: Nhiet do (C)" } },
+    { "type": "wokwi-relay-module", "id": "relay", "top": 150, "left": 160, "attrs": { "label": "Ao 2: Relay Suc khi" } },
+    { "type": "wokwi-led", "id": "led_aerator", "top": 170, "left": 300, "attrs": { "color": "green", "label": "Ao 2: LED Suc khi" } }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    [ "esp:GND.1", "pot_do:GND", "black", [ "v0" ] ],
+    [ "esp:3V3", "pot_do:VCC", "red", [ "v0" ] ],
+    [ "esp:34", "pot_do:SIG", "blue", [ "v0" ] ],
+    [ "esp:GND.1", "pot_ph:GND", "black", [ "v0" ] ],
+    [ "esp:3V3", "pot_ph:VCC", "red", [ "v0" ] ],
+    [ "esp:35", "pot_ph:SIG", "green", [ "v0" ] ],
+    [ "esp:GND.1", "pot_sal:GND", "black", [ "v0" ] ],
+    [ "esp:3V3", "pot_sal:VCC", "red", [ "v0" ] ],
+    [ "esp:32", "pot_sal:SIG", "purple", [ "v0" ] ],
+    [ "esp:GND.2", "temp_sensor:GND", "black", [ "v0" ] ],
+    [ "esp:3V3", "temp_sensor:VDD", "red", [ "v0" ] ],
+    [ "esp:4", "temp_sensor:DQ", "orange", [ "v0" ] ],
+    [ "esp:GND.2", "relay:GND", "black", [ "v0" ] ],
+    [ "esp:5V", "relay:VCC", "red", [ "v0" ] ],
+    [ "esp:2", "relay:IN", "cyan", [ "v0" ] ],
+    [ "relay:NO", "led_aerator:A", "green", [ "v0" ] ],
+    [ "esp:GND.2", "led_aerator:C", "black", [ "v0" ] ]
+  ],
+  "dependencies": {}
+}

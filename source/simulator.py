@@ -1,21 +1,13 @@
 #!/usr/bin/env python3
 """
-simulator.py - giả lập các ao nuôi tôm cho dự án (thay thế tạm Wokwi khi chưa nối được broker).
+simulator.py - Gia lap cac ao nuoi tom cho du an (IoT Nhom 5).
 
-Mỗi ao gửi lên EMQX, theo quy ước của IoT Agent JSON:
+Moi ao gui len EMQX, theo quy uoc cua IoT Agent JSON:
     /{apikey}/{device_id}/attrs    {"do":5.4,"ph":7.9,"t":29.1,"s":15.2,"a":"OFF"}
-Và nhận lệnh sục khí từ:
-    /{apikey}/{device_id}/cmd      {"aerator": {"state": "ON"}}  (hoặc {"aerator": "ON"})
-rồi trả kết quả về:
+Va nhan lenh suc khi tu:
+    /{apikey}/{device_id}/cmd      {"aerator": {"state": "ON"}}  (hoac {"aerator": "ON"})
+roi tra ket qua ve:
     /{apikey}/{device_id}/cmdexe   {"aerator": "ON"}
-
-Dữ liệu có chu kỳ ngày/đêm (một "ngày giả lập" = --day-seconds giây thật), có nhiễu,
-và thỉnh thoảng có sự kiện oxy tụt bất thường. Bật sục khí thì oxy hồi dần lên.
-
-Chạy:
-    pip install paho-mqtt
-    python source/simulator.py --ponds 5 --apikey shrimpkey
-    python source/simulator.py --anomaly-pond pond003 --anomaly-after 30   # ép sự kiện oxy tụt
 """
 import argparse
 import json
@@ -24,6 +16,9 @@ import os
 import random
 import sys
 import time
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import paho.mqtt.client as mqtt
 
@@ -38,17 +33,17 @@ class Pond:
         self.apikey = apikey
         self.rng = rng
         self.p_anomaly = p_anomaly
-        # Mỗi ao có mức nền hơi khác nhau
+        # Moi ao co muc nen hoi khac nhau
         self.do_mean = rng.uniform(5.0, 6.0)      # mg/L
         self.do_amp = rng.uniform(1.4, 2.0)
-        self.t_mean = rng.uniform(28.0, 30.0)     # °C
+        self.t_mean = rng.uniform(28.0, 30.0)     # oC
         self.ph_mean = rng.uniform(7.7, 8.1)
         self.sal_mean = rng.uniform(12.0, 20.0)   # ppt
-        # Trạng thái động
+        # Trang thai dong
         self.aerator_on = False
-        self.boost = 0.0          # mg/L cộng thêm nhờ sục khí
+        self.boost = 0.0          # mg/L cong them nho suc khi
         self.anomaly_offset = 0.0
-        self.anomaly_left = 0     # số mẫu còn lại của sự kiện
+        self.anomaly_left = 0     # so mau con lai cua su kien
         self.anomaly_depth = 0.0
 
     # ----- topic -----
@@ -60,27 +55,26 @@ class Pond:
     def topic_cmdexe(self):
         return f"/{self.apikey}/{self.device_id}/cmdexe"
 
-    # ----- sự kiện bất thường -----
+    # ----- su kien bat thuong -----
     def start_anomaly(self, depth=None, samples=None):
         self.anomaly_depth = depth if depth is not None else self.rng.uniform(2.0, 3.5)
         self.anomaly_left = samples if samples is not None else self.rng.randint(12, 30)
 
-    # ----- một mẫu đo -----
+    # ----- mot mau do -----
     def sample(self, hour):
-        """hour: giờ giả lập trong ngày, 0..24"""
+        """hour: gio gia lap trong ngay, 0..24"""
         r = self.rng
-        # Sự kiện ngẫu nhiên
         if self.anomaly_left <= 0 and r.random() < self.p_anomaly:
             self.start_anomaly()
         target_anom = -self.anomaly_depth if self.anomaly_left > 0 else 0.0
         self.anomaly_offset += (target_anom - self.anomaly_offset) * 0.25
         if self.anomaly_left > 0:
             self.anomaly_left -= 1
-        # Sục khí: tiến dần tới +1.8 mg/L khi bật, về 0 khi tắt
+        # Suc khi: tien dan toi +1.8 mg/L khi bat, ve 0 khi tat
         target_boost = 1.8 if self.aerator_on else 0.0
         self.boost += (target_boost - self.boost) * 0.15
 
-        # DO cao nhất khoảng 15h (quang hợp), thấp nhất khoảng 3h sáng
+        # DO cao nhat khoang 15h (quang hop), thap nhat khoang 3h sang
         daily = math.sin(2 * math.pi * (hour - 9) / 24)
         do = self.do_mean + self.do_amp * daily + self.boost + self.anomaly_offset + r.gauss(0, 0.08)
         temp = self.t_mean + 2.2 * daily + r.gauss(0, 0.05)
@@ -98,7 +92,6 @@ class Pond:
 
 
 def parse_state(value):
-    """Chấp nhận "ON", {"state":"ON"}, {"value":"ON"}, 1, true..."""
     if isinstance(value, dict):
         value = value.get("state", value.get("value", ""))
     return str(value).strip().upper() in ("ON", "1", "TRUE", "START")
@@ -112,22 +105,22 @@ def build_client(client_id):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Giả lập ao nuôi tôm gửi MQTT")
+    ap = argparse.ArgumentParser(description="Gia lap ao nuoi tom gui MQTT")
     ap.add_argument("--host", default=os.getenv("MQTT_HOST", "localhost"))
     ap.add_argument("--port", type=int, default=int(os.getenv("MQTT_PORT", "1883")))
     ap.add_argument("--user", default=os.getenv("MQTT_USER"))
     ap.add_argument("--password", default=os.getenv("MQTT_PASSWORD"))
     ap.add_argument("--apikey", default=os.getenv("APIKEY", "shrimpkey"))
-    ap.add_argument("--ponds", type=int, default=5, help="số ao (pond001..)")
-    ap.add_argument("--interval", type=float, default=5.0, help="chu kỳ lấy mẫu (giây thật)")
+    ap.add_argument("--ponds", type=int, default=5, help="so ao (pond001..)")
+    ap.add_argument("--interval", type=float, default=5.0, help="chu ky lay mau (giay)")
     ap.add_argument("--day-seconds", type=float, default=600.0,
-                    help="một ngày giả lập kéo dài bao nhiêu giây thật")
+                    help="mot ngay gia lap keo dai bao nhieu giay")
     ap.add_argument("--qos", type=int, default=1, choices=[0, 1, 2])
     ap.add_argument("--p-anomaly", type=float, default=0.002,
-                    help="xác suất mỗi mẫu bắt đầu sự kiện oxy tụt")
+                    help="xac suat moi mau bat dau su kien oxy tut")
     ap.add_argument("--seed", type=int, default=None)
-    ap.add_argument("--anomaly-pond", default=None, help="ép sự kiện oxy tụt cho ao này, ví dụ pond003")
-    ap.add_argument("--anomaly-after", type=float, default=30.0, help="sau bao nhiêu giây thì ép sự kiện")
+    ap.add_argument("--anomaly-pond", default=None, help="ep su kien oxy tut cho ao nay, vi du pond003")
+    ap.add_argument("--anomaly-after", type=float, default=30.0, help="sau bao nhieu giay thi ep su kien")
     args = ap.parse_args()
 
     base_rng = random.Random(args.seed)
@@ -147,9 +140,9 @@ def main():
         failed = getattr(rc, "is_failure", None)
         failed = failed if failed is not None else (rc != 0)
         if failed:
-            print(f"[mqtt] kết nối thất bại: {rc}", file=sys.stderr)
+            print(f"[mqtt] ket noi that bai: {rc}", file=sys.stderr)
             return
-        print(f"[mqtt] đã kết nối {args.host}:{args.port}, nhận lệnh tại {cmd_filter}")
+        print(f"[mqtt] da ket noi {args.host}:{args.port}, nhan lenh tai {cmd_filter}")
         cl.subscribe(cmd_filter, qos=1)
 
     def on_message(cl, userdata, msg):
@@ -160,12 +153,12 @@ def main():
         try:
             body = json.loads(msg.payload.decode("utf-8"))
         except (ValueError, UnicodeDecodeError):
-            print(f"[{pond.device_id}] lệnh không phải JSON: {msg.payload!r}", file=sys.stderr)
+            print(f"[{pond.device_id}] lenh khong phai JSON: {msg.payload!r}", file=sys.stderr)
             return
         if "aerator" in body:
             pond.aerator_on = parse_state(body["aerator"])
             state = "ON" if pond.aerator_on else "OFF"
-            print(f"[{pond.device_id}] nhận lệnh sục khí -> {state}")
+            print(f"[{pond.device_id}] nhan lenh suc khi -> {state}")
             cl.publish(pond.topic_cmdexe, json.dumps({"aerator": state}), qos=1)
 
     client.on_connect = on_connect
@@ -173,7 +166,7 @@ def main():
     client.connect(args.host, args.port, keepalive=30)
     client.loop_start()
 
-    print(f"Giả lập {len(ponds)} ao, chu kỳ {args.interval}s, 1 ngày giả lập = {args.day_seconds}s. Ctrl+C để dừng.")
+    print(f"Gia lap {len(ponds)} ao, chu ky {args.interval}s, 1 ngay gia lap = {args.day_seconds}s. Ctrl+C de dung.")
     start = time.time()
     forced = False
     try:
@@ -184,7 +177,7 @@ def main():
                 target = ponds.get(args.anomaly_pond)
                 if target:
                     target.start_anomaly(depth=3.0, samples=20)
-                    print(f"[{target.device_id}] >>> ÉP sự kiện oxy tụt <<<")
+                    print(f"[{target.device_id}] >>> EP su kien oxy tut <<<")
                 forced = True
             for pond in ponds.values():
                 data = pond.sample(hour)
@@ -193,7 +186,7 @@ def main():
                       f"T={data['t']:5.2f} S={data['s']:5.2f} aerator={data['a']}")
             time.sleep(args.interval)
     except KeyboardInterrupt:
-        print("\nDừng simulator.")
+        print("\nDung simulator.")
     finally:
         client.loop_stop()
         client.disconnect()

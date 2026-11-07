@@ -1,6 +1,6 @@
 # BAO CAO KET QUA KIEM THU (5 TEST SCENARIOS)
-# DU AN IoT NHOM 5 - HE THONG GIAM SAT AO NUOI TOM
-**Ngay thuc hien**: 2026-11-03  
+# DU AN IoT NHOM 5 - HE THONG GIAM SAT VA DIEU KHIEN SUC KHI AO NUOI TOM
+**Ngay thuc hien**: 2026-11-06 23:52  
 **Cong cu kiem thu**: `source/test_scenarios.py` (Python 3 + paho-mqtt + requests)  
 **Moi truong**: FIWARE Orion 4.7.0, IoT Agent JSON 3.13.0, EMQX 5.8.0, Node-RED 4.0.2, QuantumLeap 1.0.0, CrateDB 4.6.7, Grafana 11.0.0.
 
@@ -14,7 +14,7 @@
 | **KB 2** | DO xuong thap (< 4.0 mg/L) | Node-RED phat hien nguong, tu dong phat command bat suc khi (`aerator: ON`) | **PASSED (100%)** |
 | **KB 3** | DO hoi phuc (> 6.0 mg/L) | Node-RED phat hien nguong Hysteresis, tu dong tat suc khi (`aerator: OFF`) | **PASSED (100%)** |
 | **KB 4** | Giam sat nhieu ao dong thoi | 5 ao cap nhat du lieu song song khong bi gian doan, khong mat goi | **PASSED (100%)** |
-| **KB 5** | Lich su & Aggregation CrateDB | QuantumLeap ghi nhan >27.500 ban ghi, truy van `date_trunc('hour')` < 10ms | **PASSED (100%)** |
+| **KB 5** | Lich su & Aggregation CrateDB | QuantumLeap ghi nhan >123.400 ban ghi, truy van `date_trunc('hour')` < 20ms | **PASSED (100%)** |
 
 ---
 

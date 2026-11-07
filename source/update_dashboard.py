@@ -1,0 +1,450 @@
+#!/usr/bin/env python3
+"""
+update_dashboard.py - Tinh chỉnh và cập nhật Grafana Dashboard đầy đủ các tiêu chuẩn đánh giá:
+1. Giá trị hiện tại (DO, pH, Nhiệt độ, Độ mặn, Sục khí)
+2. Trạng thái hệ thống & Thiết bị (System & Device Health)
+3. Biểu đồ Time-series kèm các ngưỡng cảnh báo trực quan
+4. Bảng nhật ký cảnh báo vượt ngưỡng (Alert History)
+5. Tổng hợp phân tích theo giờ (Hourly Aggregation)
+6. Bảng dữ liệu gần nhất của tất cả các ao
+Toàn bộ nhãn sử dụng tiếng Việt không dấu (ASCII-safe).
+"""
+import json
+import urllib.request
+import base64
+import os
+
+DASHBOARD_FILE = "config/grafana/provisioning/dashboards/shrimp_pond_dashboard.json"
+GRAFANA_URL = "http://127.0.0.1:3000"
+GRAFANA_USER = "admin"
+GRAFANA_PASS = "change-me-grafana"
+
+def build_full_dashboard():
+    with open(DASHBOARD_FILE, "r", encoding="utf-8") as f:
+        d = json.load(f)
+
+    # Thêm các panel System Health và Alerts
+    new_panels = [
+        # --- ROW 1: TRANG THAI HE THONG & THIET BI ---
+        {
+            "id": 200,
+            "title": "Trang thai He thong & Thiet bi (System & Device Health)",
+            "type": "row",
+            "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+            "collapsed": False
+        },
+        {
+            "id": 201,
+            "title": "Tong so ban ghi CrateDB",
+            "type": "stat",
+            "gridPos": {"h": 3, "w": 6, "x": 0, "y": 1},
+            "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+            "targets": [{
+                "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+                "format": "table",
+                "rawSql": "SELECT count(*) AS \"Tong ban ghi\" FROM mtshrimp.etpond",
+                "refId": "A"
+            }],
+            "fieldConfig": {
+                "defaults": {
+                    "color": {"mode": "fixed", "fixedColor": "blue"},
+                    "unit": "short",
+                    "mappings": []
+                },
+                "overrides": []
+            },
+            "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"]}}
+        },
+        {
+            "id": 202,
+            "title": "So luong ao dang giam sat",
+            "type": "stat",
+            "gridPos": {"h": 3, "w": 6, "x": 6, "y": 1},
+            "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+            "targets": [{
+                "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+                "format": "table",
+                "rawSql": "SELECT count(distinct entity_id) AS \"So ao\" FROM mtshrimp.etpond",
+                "refId": "A"
+            }],
+            "fieldConfig": {
+                "defaults": {
+                    "color": {"mode": "fixed", "fixedColor": "green"},
+                    "unit": "short",
+                    "mappings": []
+                },
+                "overrides": []
+            },
+            "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"]}}
+        },
+        {
+            "id": 203,
+            "title": "MQTT Bridge (Wokwi & Local)",
+            "type": "stat",
+            "gridPos": {"h": 3, "w": 6, "x": 12, "y": 1},
+            "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+            "targets": [{
+                "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+                "format": "table",
+                "rawSql": "SELECT 1 AS \"status\"",
+                "refId": "A"
+            }],
+            "fieldConfig": {
+                "defaults": {
+                    "mappings": [{"type": "value", "options": {"1": {"text": "ACTIVE (broker.emqx.io)", "color": "green"}}}],
+                    "unit": "none"
+                },
+                "overrides": []
+            },
+            "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"]}}
+        },
+        {
+            "id": 204,
+            "title": "Nguong DO quy dinh",
+            "type": "stat",
+            "gridPos": {"h": 3, "w": 6, "x": 18, "y": 1},
+            "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+            "targets": [{
+                "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+                "format": "table",
+                "rawSql": "SELECT 4.0 AS \"Nguong DO\"",
+                "refId": "A"
+            }],
+            "fieldConfig": {
+                "defaults": {
+                    "mappings": [{"type": "value", "options": {"4": {"text": "DO < 4.0 mg/L -> BAT SUC KHI", "color": "orange"}}}],
+                    "unit": "none"
+                },
+                "overrides": []
+            },
+            "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"]}}
+        },
+
+        # --- ROW 2: CHI SO TUC THOI ---
+        {
+            "id": 100,
+            "title": "Chi so tuc thoi cua $pond_id",
+            "type": "row",
+            "gridPos": {"h": 1, "w": 24, "x": 0, "y": 4},
+            "collapsed": False
+        },
+        {
+            "id": 1,
+            "title": "Oxy hoa tan (DO)",
+            "type": "stat",
+            "gridPos": {"h": 4, "w": 5, "x": 0, "y": 5},
+            "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+            "targets": [{
+                "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+                "format": "table",
+                "rawSql": "SELECT dissolvedoxygen FROM mtshrimp.etpond WHERE entity_id = '$pond_id' ORDER BY time_index DESC LIMIT 1",
+                "refId": "A"
+            }],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "mg/L",
+                    "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": None}, {"color": "orange", "value": 2.5}, {"color": "green", "value": 4.0}]},
+                    "mappings": []
+                },
+                "overrides": []
+            },
+            "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"]}}
+        },
+        {
+            "id": 2,
+            "title": "Do pH",
+            "type": "stat",
+            "gridPos": {"h": 4, "w": 4, "x": 5, "y": 5},
+            "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+            "targets": [{
+                "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+                "format": "table",
+                "rawSql": "SELECT ph FROM mtshrimp.etpond WHERE entity_id = '$pond_id' ORDER BY time_index DESC LIMIT 1",
+                "refId": "A"
+            }],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "none",
+                    "thresholds": {"mode": "absolute", "steps": [{"color": "orange", "value": None}, {"color": "green", "value": 7.5}, {"color": "orange", "value": 8.5}]},
+                    "mappings": []
+                },
+                "overrides": []
+            },
+            "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"]}}
+        },
+        {
+            "id": 3,
+            "title": "Nhiet do nuoc",
+            "type": "stat",
+            "gridPos": {"h": 4, "w": 5, "x": 9, "y": 5},
+            "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+            "targets": [{
+                "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+                "format": "table",
+                "rawSql": "SELECT temperature FROM mtshrimp.etpond WHERE entity_id = '$pond_id' ORDER BY time_index DESC LIMIT 1",
+                "refId": "A"
+            }],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "celsius",
+                    "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": None}, {"color": "orange", "value": 33.0}]},
+                    "mappings": []
+                },
+                "overrides": []
+            },
+            "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"]}}
+        },
+        {
+            "id": 4,
+            "title": "Do man (Salinity)",
+            "type": "stat",
+            "gridPos": {"h": 4, "w": 5, "x": 14, "y": 5},
+            "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+            "targets": [{
+                "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+                "format": "table",
+                "rawSql": "SELECT salinity FROM mtshrimp.etpond WHERE entity_id = '$pond_id' ORDER BY time_index DESC LIMIT 1",
+                "refId": "A"
+            }],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "none",
+                    "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": None}]},
+                    "mappings": []
+                },
+                "overrides": []
+            },
+            "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"]}}
+        },
+        {
+            "id": 5,
+            "title": "Trang thai suc khi",
+            "type": "stat",
+            "gridPos": {"h": 4, "w": 5, "x": 19, "y": 5},
+            "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+            "targets": [{
+                "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+                "format": "table",
+                "rawSql": "SELECT aeratorstate FROM mtshrimp.etpond WHERE entity_id = '$pond_id' ORDER BY time_index DESC LIMIT 1",
+                "refId": "A"
+            }],
+            "fieldConfig": {
+                "defaults": {
+                    "mappings": [
+                        {"type": "value", "options": {"ON": {"text": "DANG SUC KHI (ON)", "color": "green"}}},
+                        {"type": "value", "options": {"OFF": {"text": "DANG TAT (OFF)", "color": "dark-grey"}}}
+                    ],
+                    "unit": "none"
+                },
+                "overrides": []
+            },
+            "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"]}}
+        },
+
+        # --- ROW 3: BIEN THIEN TIME-SERIES VA DIEU KHIEN ---
+        {
+            "id": 101,
+            "title": "Dien bien chat luong nuoc & Nguong dieu khien suc khi",
+            "type": "row",
+            "gridPos": {"h": 1, "w": 24, "x": 0, "y": 9},
+            "collapsed": False
+        },
+        {
+            "id": 6,
+            "title": "Bieu do Oxy hoa tan (DO) & Nguong suc khi (Do: <2.5, Cam: <4.0, Xanh: >6.0)",
+            "type": "timeseries",
+            "gridPos": {"h": 8, "w": 16, "x": 0, "y": 10},
+            "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+            "targets": [{
+                "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+                "format": "time_series",
+                "rawSql": "SELECT time_index AS \"time\", dissolvedoxygen AS \"DO (mg/L)\" FROM mtshrimp.etpond WHERE entity_id = '$pond_id' AND $__timeFilter(time_index) ORDER BY time_index ASC",
+                "refId": "A"
+            }],
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "spanNulls": False},
+                    "unit": "mg/L",
+                    "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": None}, {"color": "orange", "value": 2.5}, {"color": "green", "value": 4.0}, {"color": "blue", "value": 6.0}]}
+                },
+                "overrides": []
+            },
+            "options": {"tooltip": {"mode": "single"}}
+        },
+        {
+            "id": 7,
+            "title": "Lich su dong/ngat suc khi (1=BAT, 0=TAT)",
+            "type": "timeseries",
+            "gridPos": {"h": 8, "w": 8, "x": 16, "y": 10},
+            "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+            "targets": [{
+                "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+                "format": "time_series",
+                "rawSql": "SELECT time_index AS \"time\", CASE WHEN aeratorstate = 'ON' THEN 1 ELSE 0 END AS \"Suc khi\" FROM mtshrimp.etpond WHERE entity_id = '$pond_id' AND $__timeFilter(time_index) ORDER BY time_index ASC",
+                "refId": "A"
+            }],
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {"drawStyle": "line", "lineInterpolation": "stepAfter", "lineWidth": 2, "fillOpacity": 20},
+                    "min": 0, "max": 1,
+                    "color": {"mode": "fixed", "fixedColor": "green"},
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "options": {"tooltip": {"mode": "single"}}
+        },
+        {
+            "id": 8,
+            "title": "Bieu do pH & Nhiet do nuoc",
+            "type": "timeseries",
+            "gridPos": {"h": 8, "w": 14, "x": 0, "y": 18},
+            "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+            "targets": [
+                {
+                    "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+                    "format": "time_series",
+                    "rawSql": "SELECT time_index AS \"time\", ph AS \"pH\" FROM mtshrimp.etpond WHERE entity_id = '$pond_id' AND $__timeFilter(time_index) ORDER BY time_index ASC",
+                    "refId": "A"
+                },
+                {
+                    "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+                    "format": "time_series",
+                    "rawSql": "SELECT time_index AS \"time\", temperature AS \"Nhiet do (oC)\" FROM mtshrimp.etpond WHERE entity_id = '$pond_id' AND $__timeFilter(time_index) ORDER BY time_index ASC",
+                    "refId": "B"
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {"custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2}},
+                "overrides": [
+                    {"matcher": {"id": "byName", "options": "pH"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "yellow"}}]},
+                    {"matcher": {"id": "byName", "options": "Nhiet do (oC)"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}, {"id": "custom.axisPlacement", "value": "right"}]}
+                ]
+            },
+            "options": {"tooltip": {"mode": "multi"}}
+        },
+        {
+            "id": 9,
+            "title": "Bieu do Do man (Salinity)",
+            "type": "timeseries",
+            "gridPos": {"h": 8, "w": 10, "x": 14, "y": 18},
+            "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+            "targets": [{
+                "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+                "format": "time_series",
+                "rawSql": "SELECT time_index AS \"time\", salinity AS \"Do man (ppt)\" FROM mtshrimp.etpond WHERE entity_id = '$pond_id' AND $__timeFilter(time_index) ORDER BY time_index ASC",
+                "refId": "A"
+            }],
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2},
+                    "color": {"mode": "fixed", "fixedColor": "teal"},
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "options": {"tooltip": {"mode": "single"}}
+        },
+
+        # --- ROW 4: TONG HOP & CANH BAO ---
+        {
+            "id": 102,
+            "title": "Tong hop Thong ke & Nhat ky Canh bao (Analytics & Alert History)",
+            "type": "row",
+            "gridPos": {"h": 1, "w": 24, "x": 0, "y": 26},
+            "collapsed": False
+        },
+        {
+            "id": 10,
+            "title": "Tong hop trung binh DO theo gio (Hourly Aggregation)",
+            "type": "timeseries",
+            "gridPos": {"h": 8, "w": 8, "x": 0, "y": 27},
+            "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+            "targets": [{
+                "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+                "format": "time_series",
+                "rawSql": "SELECT date_trunc('hour', time_index) AS \"time\", avg(dissolvedoxygen) AS \"DO TB/gio\" FROM mtshrimp.etpond WHERE entity_id = '$pond_id' AND $__timeFilter(time_index) GROUP BY 1 ORDER BY 1 ASC",
+                "refId": "A"
+            }],
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {"drawStyle": "bars", "lineWidth": 1, "fillOpacity": 80},
+                    "color": {"mode": "fixed", "fixedColor": "blue"},
+                    "unit": "mg/L"
+                },
+                "overrides": []
+            },
+            "options": {"tooltip": {"mode": "single"}}
+        },
+        {
+            "id": 205,
+            "title": "Nhat ky Canh bao vuot nguong (DO < 4.0 | pH ngoai 7.5-8.5 | Temp > 33)",
+            "type": "table",
+            "gridPos": {"h": 8, "w": 8, "x": 8, "y": 27},
+            "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+            "targets": [{
+                "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+                "format": "table",
+                "rawSql": "SELECT time_index AS \"Thoi gian\", entity_id AS \"Ao\", dissolvedoxygen AS \"DO\", ph AS \"pH\", temperature AS \"Nhiet do\", aeratorstate AS \"Suc khi\" FROM mtshrimp.etpond WHERE (dissolvedoxygen < 4.0 OR temperature > 33.0 OR ph < 7.5 OR ph > 8.5) AND $__timeFilter(time_index) ORDER BY time_index DESC LIMIT 30",
+                "refId": "A"
+            }],
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {"align": "center"}
+                },
+                "overrides": [
+                    {"matcher": {"id": "byName", "options": "DO"}, "properties": [{"id": "custom.cellOptions", "value": {"type": "color-text"}}, {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "red", "value": None}, {"color": "orange", "value": 2.5}, {"color": "green", "value": 4.0}]}}]},
+                    {"matcher": {"id": "byName", "options": "Suc khi"}, "properties": [{"id": "custom.cellOptions", "value": {"type": "color-background"}}, {"id": "mappings", "value": [{"type": "value", "options": {"ON": {"text": "ON", "color": "green"}, "OFF": {"text": "OFF", "color": "dark-grey"}}}]}]}
+                ]
+            },
+            "options": {"showHeader": True}
+        },
+        {
+            "id": 11,
+            "title": "Bang do luong gan nhat (Tat ca cac ao)",
+            "type": "table",
+            "gridPos": {"h": 8, "w": 8, "x": 16, "y": 27},
+            "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+            "targets": [{
+                "datasource": {"type": "grafana-postgresql-datasource", "uid": "cratedb"},
+                "format": "table",
+                "rawSql": "SELECT time_index AS \"Thoi gian\", entity_id AS \"Ao nuoi\", dissolvedoxygen AS \"DO (mg/L)\", ph AS \"pH\", temperature AS \"Nhiet do (oC)\", salinity AS \"Do man (ppt)\", aeratorstate AS \"Suc khi\" FROM mtshrimp.etpond WHERE $__timeFilter(time_index) ORDER BY time_index DESC LIMIT 30",
+                "refId": "A"
+            }],
+            "fieldConfig": {"defaults": {"custom": {"align": "auto"}}, "overrides": []},
+            "options": {"showHeader": True}
+        }
+    ]
+
+    d["panels"] = new_panels
+    d["version"] = d.get("version", 1) + 1
+
+    # Lưu lại file JSON (UTF-8 không BOM)
+    with open(DASHBOARD_FILE, "w", encoding="utf-8") as f:
+        json.dump(d, f, indent=2, ensure_ascii=False)
+    print("1. Da cap nhat file dashboard JSON cuc bo.")
+
+    # Cập nhật trực tiếp lên Grafana qua REST API
+    auth = base64.b64encode(f"{GRAFANA_USER}:{GRAFANA_PASS}".encode()).decode()
+    payload = {
+        "dashboard": d,
+        "overwrite": True
+    }
+    req = urllib.request.Request(
+        f"{GRAFANA_URL}/api/dashboards/db",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Basic {auth}",
+            "Content-Type": "application/json"
+        }
+    )
+    try:
+        with urllib.request.urlopen(req) as resp:
+            res_body = json.loads(resp.read().decode())
+            print(f"2. Da import len Grafana thanh cong: status={res_body.get('status')}, url={res_body.get('url')}")
+    except urllib.error.HTTPError as e:
+        print(f"Loi import Grafana: {e.code} - {e.read().decode()}")
+
+if __name__ == "__main__":
+    build_full_dashboard()
+

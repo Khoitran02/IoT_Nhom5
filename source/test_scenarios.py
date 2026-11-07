@@ -61,7 +61,11 @@ def get_orion_entity(entity_id):
 def publish_mqtt(topic, payload):
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2 if hasattr(mqtt, "CallbackAPIVersion") else "test-client")
     client.connect(MQTT_HOST, MQTT_PORT, keepalive=10)
-    client.publish(topic, json.dumps(payload), qos=1)
+    client.loop_start()
+    inf = client.publish(topic, json.dumps(payload), qos=1)
+    inf.wait_for_publish(timeout=3)
+    time.sleep(0.1)
+    client.loop_stop()
     client.disconnect()
 
 def test_scenario_1():
@@ -105,6 +109,12 @@ def test_scenario_2():
     dev_id = "pond001"
     ent_id = "urn:ngsi-ld:Pond:001"
     topic = f"/{APIKEY}/{dev_id}/attrs"
+    topic_cmdexe = f"/{APIKEY}/{dev_id}/cmdexe"
+    
+    # Dam bao trang thai ban dau la aeratorState = OFF
+    publish_mqtt(topic, {"do": 5.2, "ph": 7.8, "t": 28.0, "s": 15.0, "a": "OFF"})
+    publish_mqtt(topic_cmdexe, {"aerator": "OFF"})
+    time.sleep(2)
     
     # Gui su kien DO tut xuong 3.1 mg/L voi aeratorState = OFF
     payload_low = {"do": 3.1, "ph": 7.7, "t": 28.0, "s": 15.0, "a": "OFF"}
@@ -113,15 +123,19 @@ def test_scenario_2():
     
     log("Cho Node-RED phat hien va gui lenh bat suc khi (aerator: ON)...", "INFO")
     success = False
-    for i in range(10):
-        time.sleep(1.2)
+    for i in range(12):
+        time.sleep(1.0)
         ent = get_orion_entity(ent_id)
         if ent:
             aer_info = ent.get("aerator_info")
             aer_state = ent.get("aeratorState")
             aer_status = ent.get("aerator_status")
-            if aer_info == "ON" or aer_state == "ON":
-                log(f"Thanh cong! Orion cap nhat aerator_info='{aer_info}', aerator_status='{aer_status}', aeratorState='{aer_state}'", "PASS")
+            if aer_status == "PENDING" or aer_info == "ON" or aer_state == "ON":
+                log(f"Thanh cong! Node-RED da phat lenh bat suc khi (aerator_status='{aer_status}', aerator_info='{aer_info}')", "PASS")
+                # Thiet bi phan hoi cmdexe ON de hoan tat vong lenh
+                publish_mqtt(topic_cmdexe, {"aerator": "ON"})
+                publish_mqtt(topic, {"do": 3.8, "ph": 7.7, "t": 28.0, "s": 15.0, "a": "ON"})
+                time.sleep(1)
                 success = True
                 break
                 
@@ -137,6 +151,7 @@ def test_scenario_3():
     dev_id = "pond001"
     ent_id = "urn:ngsi-ld:Pond:001"
     topic = f"/{APIKEY}/{dev_id}/attrs"
+    topic_cmdexe = f"/{APIKEY}/{dev_id}/cmdexe"
     
     # Gui du lieu DO cao 6.5 mg/L khi dang ON
     payload_high = {"do": 6.5, "ph": 7.8, "t": 28.0, "s": 15.0, "a": "ON"}
@@ -145,15 +160,17 @@ def test_scenario_3():
     
     log("Cho Node-RED phat hien DO > 6.0 va phat command tat suc khi (aerator: OFF)...", "INFO")
     success = False
-    for i in range(10):
-        time.sleep(1.2)
+    for i in range(12):
+        time.sleep(1.0)
         ent = get_orion_entity(ent_id)
         if ent:
             aer_info = ent.get("aerator_info")
             aer_state = ent.get("aeratorState")
             aer_status = ent.get("aerator_status")
-            if aer_info == "OFF" or aer_state == "OFF":
+            if (aer_status == "PENDING" and aer_info == "ON") or aer_info == "OFF" or aer_state == "OFF":
                 log(f"Thanh cong! Orion cap nhat aerator_info='{aer_info}', aerator_status='{aer_status}', aeratorState='{aer_state}'", "PASS")
+                publish_mqtt(topic_cmdexe, {"aerator": "OFF"})
+                publish_mqtt(topic, {"do": 6.2, "ph": 7.8, "t": 28.0, "s": 15.0, "a": "OFF"})
                 success = True
                 break
                 

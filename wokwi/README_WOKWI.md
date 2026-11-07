@@ -35,10 +35,27 @@ Thư mục này chứa toàn bộ mã nguồn Firmware và sơ đồ mạch ph�
 
 ---
 
-### 3. KET NOI WOKWI VOI EMQX BROKER LOCAL
+### 3. KET NOI WOKWI VOI EMQX LOCAL QUA MQTT BRIDGE (HO TRO CA 5 AO WOKWI)
 
-Wokwi chạy trên cloud browser, để kết nối với EMQX Broker đang chạy trên máy tính (`localhost:1883`), bạn có 3 lựa chọn:
-1. **Dùng Public Broker test**: Đặt `MQTT_SERVER = "broker.emqx.io"` trong code.
-2. **Dùng Cloudflare Tunnel / Ngrok**: Mở tunnel từ cổng 1883 của máy bạn ra Internet và nhập domain tunnel vào `MQTT_SERVER`.
-3. **Dùng Wokwi IoT Gateway** (Dành cho tài khoản Wokwi Club / Private Gateway): trỏ thẳng về `10.0.2.2`.
+Hệ thống đã cấu hình sẵn **15 MQTT Bridge 2 chiều** trực tiếp trên container EMQX local nối với public broker `broker.emqx.io` cho toàn bộ **5 ao nuôi (`pond001` đến `pond005`)**:
+- **Ingress (Sensor Data)**: Wokwi publish lên `iot_nhom5_shrimp_c8d2/{device_id}/attrs` trên `broker.emqx.io` -> EMQX Bridge tự động bắc cầu vào `/shrimpkey/{device_id}/attrs` local -> IoT Agent JSON -> Orion Context Broker -> CrateDB & Grafana.
+- **Egress (Control Command)**: Node-RED gửi lệnh sục khí vào Orion -> IoT Agent bắn vào `/shrimpkey/{device_id}/cmd` -> EMQX Bridge tự động bắc cầu ra `iot_nhom5_shrimp_c8d2/{device_id}/cmd` trên `broker.emqx.io` -> Wokwi ESP32 nhận lệnh, bật Relay/LED sáng.
+- **Ingress (Command Execution Result)**: Wokwi publish kết quả lên `iot_nhom5_shrimp_c8d2/{device_id}/cmdexe` -> EMQX Bridge chuyển về `/shrimpkey/{device_id}/cmdexe` -> IoT Agent xác nhận trạng thái lệnh `OK`.
+
+---
+
+### 4. CAU TRUC 5 THIET BI WOKWI CHUYEN BIET CHO 5 AO (DAP UNG >= 5 THIET BI BAT BUOC)
+
+Mỗi ao nuôi được trang bị 1 thư mục dự án Wokwi độc lập, đã cấu hình sẵn đúng `DEVICE_ID` và sơ đồ mạch riêng:
+- [`wokwi/pond001/`](pond001/): Thiết bị trạm Ao 1 (`pond001`) - ESP32 + 4 cảm biến + Relay sục khí
+- [`wokwi/pond002/`](pond002/): Thiết bị trạm Ao 2 (`pond002`) - ESP32 + 4 cảm biến + Relay sục khí
+- [`wokwi/pond003/`](pond003/): Thiết bị trạm Ao 3 (`pond003`) - ESP32 + 4 cảm biến + Relay sục khí
+- [`wokwi/pond004/`](pond004/): Thiết bị trạm Ao 4 (`pond004`) - ESP32 + 4 cảm biến + Relay sục khí
+- [`wokwi/pond005/`](pond005/): Thiết bị trạm Ao 5 (`pond005`) - ESP32 + 4 cảm biến + Relay sục khí
+
+**Cách khởi chạy đồng thời 5 ao trên Wokwi:**
+1. Mở 5 tab trình duyệt tại [https://wokwi.com/projects/new/esp32](https://wokwi.com/projects/new/esp32).
+2. Tương ứng mỗi tab, nạp mã nguồn từ thư mục `wokwi/pond001` đến `wokwi/pond005`.
+3. Bấm **Play (Run)** trên cả 5 tab: Cả 5 trạm ESP32 Wokwi sẽ đồng thời phát dữ liệu cảm biến và sẵn sàng nhận lệnh điều khiển rơ-le độc lập.
+4. Kiểm chứng tự động toàn bộ 5 thiết bị Wokwi bằng lệnh: `python source/test_all_5_wokwi.py`.
 
